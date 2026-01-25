@@ -24,8 +24,9 @@ export default async function handler(req, res) {
   const data = await r.json();
   console.log("OPENAI RAW:", data);
   const answer =
-    data.output_text ||
-    "Я жив, но у меня сейчас 500 внутри. Проверь OPENAI_API_KEY 😈";
+  data.output_text ||
+  data.output?.find(x => x.type === "message")?.content?.find(c => c.type === "output_text")?.text ||
+  "Я жив, но у меня сейчас 500 внутри. Проверь OPENAI_API_KEY 😈";
 
   await fetch(`https://api.telegram.org/bot${process.env.TG_TOKEN}/sendMessage`, {
     method: "POST",
