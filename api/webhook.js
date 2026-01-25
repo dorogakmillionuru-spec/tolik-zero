@@ -22,6 +22,7 @@ export default async function handler(req, res) {
   });
 
   const data = await r.json();
+  console.log("OPENAI RAW:", data);
   const answer =
     data.output_text ||
     "Я жив, но у меня сейчас 500 внутри. Проверь OPENAI_API_KEY 😈";
