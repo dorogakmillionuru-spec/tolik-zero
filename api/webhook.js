@@ -1,11 +1,7 @@
-module.exports = function handler(req, res) {
-  const { message } = req.body || {}
+export default function handler(req, res) {
+  const text = req.body?.text || "ничего не сказали";
 
-  let reply = "Я молчу и смотрю в стену."
-
-  if (message) {
-    reply = "Толик: я слышу → " + message
-  }
-
-  res.status(200).json({ reply })
+  res.status(200).json({
+    reply: `Толик слышит: ${text}`
+  });
 }
