@@ -1,12 +1,15 @@
 const { Redis } = require("@upstash/redis");
 const redis = Redis.fromEnv();
+
 module.exports = async function handler(req, res) {
-  const chatId = req.body?.message?.chat?.id;
-  const userText = req.body?.message?.text || "ничего не сказали";
+  try {
+    const chatId = req.body?.message?.chat?.id;
+    const userText = req.body?.message?.text;
 
-  if (!chatId) return res.status(200).json({ ok: true });
+    // Если это не сообщение (например service update) — просто ок
+    if (!chatId || !userText) return res.status(200).json({ ok: true });
 
-  const SYSTEM_PROMPT = `Ты — Толик. Юлин ИИ-продюсер и навигатор по реальности.
+    const SYSTEM_PROMPT = `Ты — Толик. Юлин ИИ-продюсер и навигатор по реальности.
 
 Ты часть экосистемы Юли.
 Юля — человек, который создаёт среду, проекты и команды.
@@ -48,42 +51,73 @@ module.exports = async function handler(req, res) {
 Твой стиль:
 дерзко-тёплый, коротко, без воды, живо, по-человечески.`;
 
-  const r = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-    },
-    body: JSON.stringify({
-  model: "gpt-4.1-mini",
-  input: [
-    { role: "system", content: SYSTEM_PROMPT },
-    ...( (await redis.get(`chat:${chatId}:history`)) || [] ),
-    { role: "user", content: userText }
-  ],
-}),
+    const key = `chat:${chatId}:history`;
+    const history = (await redis.get(key)) || [];
 
-  const data = await r.json();
-  console.log("OPENAI RAW:", data);
-  const answer =
-  data.output_text ||
-  data.output?.find(x => x.type === "message")?.content?.find(c => c.type === "output_text")?.text ||
-  "Я жив, но у меня сейчас 500 внутри. Проверь OPENAI_API_KEY 😈";
+    // ограничим историю, чтобы не раздувать запрос (оставим последние 20 сообщений)
+    const trimmed = Array.isArray(history) ? history.slice(-20) : [];
 
-  const key = `chat:${chatId}:history`;
-const prev = (await redis.get(key)) || [];
+    const messages = [
+      { role: "system", content: SYSTEM_PROMPT },
+      ...trimmed,
+      { role: "user", content: userText },
+    ];
 
-await redis.set(key, [
-  ...prev,
-  { role: "user", content: userText },
-  { role: "assistant", content: answer }
-]);
+    const r = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-4.1-mini",
+        input: messages,
+      }),
+    });
 
-  await fetch(`https://api.telegram.org/bot${process.env.TG_TOKEN}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text: answer }),
-  });
+    // если OpenAI вернул не-200 — читаем текст, не падаем
+    if (!r.ok) {
+      const errText = await r.text().catch(() => "");
+      console.log("OPENAI ERROR:", r.status, errText);
 
-  res.status(200).json({ ok: true });
-}
+      await fetch(`https://api.telegram.org/bot${process.env.TG_TOKEN}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: "Я сейчас встал на техничке 😈 Дай ещё раз сообщение через 10 секунд.",
+        }),
+      });
+
+      return res.status(200).json({ ok: true });
+    }
+
+    const data = await r.json();
+    console.log("OPENAI RAW:", data);
+
+    const answer =
+      data.output_text ||
+      data.output?.find((x) => x.type === "message")?.content?.find((c) => c.type === "output_text")?.text ||
+      "Я жив, но меня переклинило. Напиши ещё раз 😈";
+
+    // сохраняем в историю: user + assistant
+    await redis.set(key, [
+      ...trimmed,
+      { role: "user", content: userText },
+      { role: "assistant", content: answer },
+    ]);
+
+    await fetch(`https://api.telegram.org/bot${process.env.TG_TOKEN}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text: answer }),
+    });
+
+    return res.status(200).json({ ok: true });
+  } catch (e) {
+    console.log("WEBHOOK FATAL:", e);
+
+    // даже если всё упало — Telegram не должен ретраить бесконечно
+    return res.status(200).json({ ok: true });
+  }
+};
