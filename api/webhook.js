@@ -70,6 +70,15 @@ export default async function handler(req, res) {
   data.output?.find(x => x.type === "message")?.content?.find(c => c.type === "output_text")?.text ||
   "Я жив, но у меня сейчас 500 внутри. Проверь OPENAI_API_KEY 😈";
 
+  const key = `chat:${chatId}:history`;
+const prev = (await redis.get(key)) || [];
+
+await redis.set(key, [
+  ...prev,
+  { role: "user", content: userText },
+  { role: "assistant", content: answer }
+]);
+
   await fetch(`https://api.telegram.org/bot${process.env.TG_TOKEN}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
