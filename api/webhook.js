@@ -55,13 +55,13 @@ export default async function handler(req, res) {
       Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
     },
     body: JSON.stringify({
-      model: "gpt-4.1-mini",
-      input: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: userText }
-      ],
-    }),
-  });
+  model: "gpt-4.1-mini",
+  input: [
+    { role: "system", content: SYSTEM_PROMPT },
+    ...( (await redis.get(`chat:${chatId}:history`)) || [] ),
+    { role: "user", content: userText }
+  ],
+}),
 
   const data = await r.json();
   console.log("OPENAI RAW:", data);
