@@ -1,4 +1,4 @@
-const { Redis } = require("@upstash/redis");
+import { Redis } from "@upstash/redis";
 const redis = Redis.fromEnv();
 
 module.exports = async function handler(req, res) {
