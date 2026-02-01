@@ -122,9 +122,6 @@ export default async function handler(req, res) {
 
 Твой стиль:
 дерзко-тёплый, коротко, без воды, живо, по-человечески.`;
-    ---
-
-**КОНЕЦ ИНСТРУКЦИИ ДЛЯ AI**
 
     const key = `chat:${chatId}:history`;
     const history = (await redis.get(key)) || [];
