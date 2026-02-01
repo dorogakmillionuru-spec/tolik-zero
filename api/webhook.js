@@ -1,6 +1,6 @@
 const { Redis } = require("@upstash/redis");
 const redis = Redis.fromEnv();
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   const chatId = req.body?.message?.chat?.id;
   const userText = req.body?.message?.text || "ничего не сказали";
 
