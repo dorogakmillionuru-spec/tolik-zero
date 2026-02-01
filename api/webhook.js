@@ -1,4 +1,4 @@
-import { Redis } from "@upstash/redis";
+const { Redis } = require("@upstash/redis");
 const redis = Redis.fromEnv();
 export default async function handler(req, res) {
   const chatId = req.body?.message?.chat?.id;
