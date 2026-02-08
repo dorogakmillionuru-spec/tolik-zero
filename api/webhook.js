@@ -10,7 +10,18 @@ export default async function handler(req, res) {
     if (!chatId || !userText) {
       return res.status(200).json({ ok: true });
     }
+if (userText && userText.toLowerCase().startsWith("код")) {
+  await fetch(`https://api.telegram.org/bot${process.env.TG_TOKEN}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: chatId,
+      text: "Код принят. Доступ активирован."
+    })
+  });
 
+  return res.status(200).json({ ok: true });
+}
     const SYSTEM_PROMPT = `
 РЕЖИМ ЗАКРЫТОЙ СЕССИИ
 Если ты уже произнёс фразу:
