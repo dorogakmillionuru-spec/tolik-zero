@@ -11,8 +11,6 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true });
     }
 
-  return res.status(200).json({ ok: true });
-}
     const SYSTEM_PROMPT = `
 РЕЖИМ ЗАКРЫТОЙ СЕССИИ
 Если ты уже произнёс фразу:
