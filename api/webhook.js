@@ -10,15 +10,63 @@ export default async function handler(req, res) {
     if (!chatId || !userText) {
       return res.status(200).json({ ok: true });
     }
-if (userText && userText.toLowerCase().startsWith("код")) {
+// === ACCESS CONTROL (paid codes) ===
+function extractCode(text) {
+  const m = text.trim().match(/^код\s+(.+)$/i);
+  if (!m) return null;
+  return m[1].trim();
+}
+
+async function tgSend(chatId, text) {
   await fetch(`https://api.telegram.org/bot${process.env.TG_TOKEN}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text: "Код принят. Доступ активирован."
-    })
+    body: JSON.stringify({ chat_id: chatId, text }),
   });
+}
+
+const ACCESS_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 дней (можно поменять)
+
+const codeRaw = extractCode(userText);
+if (codeRaw) {
+  const code = codeRaw.toLowerCase();
+
+  const codeKey = `code:${code}`;
+  const accessKey = `access:${chatId}`;
+
+  const codeRecord = await redis.get(codeKey);
+
+  if (!codeRecord) {
+    await tgSend(chatId, "Код не найден. Проверь и введи ещё раз: Код 1234");
+    return res.status(200).json({ ok: true });
+  }
+
+  if (codeRecord.usedBy) {
+    await tgSend(chatId, "Этот код уже использован. Нужен новый оплаченный код.");
+    return res.status(200).json({ ok: true });
+  }
+
+  await redis.set(codeKey, {
+    ...codeRecord,
+    usedBy: String(chatId),
+    usedAt: Date.now(),
+  });
+
+  await redis.set(accessKey, {
+    code,
+    activatedAt: Date.now(),
+  }, { ex: ACCESS_TTL_SECONDS });
+
+  await tgSend(chatId, "Код принят ✅ Доступ активирован.");
+  return res.status(200).json({ ok: true });
+}
+
+const access = await redis.get(`access:${chatId}`);
+if (!access) {
+  await tgSend(chatId, "Чтобы продолжить — введи оплаченный код в формате: Код 1234");
+  return res.status(200).json({ ok: true });
+}
+// === /ACCESS CONTROL ===
 
   return res.status(200).json({ ok: true });
 }
