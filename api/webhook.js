@@ -4,10 +4,10 @@ const redis = Redis.fromEnv();
 
 /**
  * Настройки
- * - MULTI_CODES_SET: Redis Set, где лежат многоразовые коды
+ * - ONE_TIME_CODES_SET: Redis Set, где лежат ОДНОРАЗОВЫЕ коды
  * - STATE_KEY: per-chat state
  */
-const MULTI_CODES_SET = "access:codes:multi";
+const ONE_TIME_CODES_SET = "access:codes:one";
 
 const FINAL_PHRASE =
   "Я показал механику и варианты.\nЕсли захочешь продолжить или появятся новые вопросы — вернись к человеку, который дал ссылку. Он подхватит дальше.";
@@ -20,7 +20,7 @@ function normalizeText(t) {
 }
 
 function looksLikeCode(t) {
-  // Простой формат: 6–32 символов, буквы/цифры/дефис/подчёркивание
+  // Формат: 6–32 символа, буквы/цифры/дефис/подчёркивание
   const s = normalizeText(t);
   return /^[A-Za-z0-9_-]{6,32}$/.test(s);
 }
@@ -39,16 +39,18 @@ async function setState(chatId, state) {
   await redis.set(`chat:${chatId}:state`, JSON.stringify(state));
 }
 
-async function hasMultiCode(code) {
-  const c = normalizeText(code).toUpperCase();
-  const ok = await redis.sismember(MULTI_CODES_SET, c);
-  return !!ok;
-}
-
-async function addMultiCode(code) {
+// ✅ одноразовый код: если нашли — СРАЗУ УДАЛЯЕМ из набора
+async function consumeOneTimeCode(code) {
   const c = normalizeText(code).toUpperCase();
   if (!c) return false;
-  await redis.sadd(MULTI_CODES_SET, c);
+  const removed = await redis.srem(ONE_TIME_CODES_SET, c); // 1 = был и удалили, 0 = не было
+  return removed === 1;
+}
+
+async function addOneTimeCode(code) {
+  const c = normalizeText(code).toUpperCase();
+  if (!c) return false;
+  await redis.sadd(ONE_TIME_CODES_SET, c);
   return true;
 }
 
@@ -79,33 +81,37 @@ export default async function handler(req, res) {
     if (userText.startsWith("/start")) {
       const parts = userText.split(" ").map(x => x.trim()).filter(Boolean);
       const payload = parts.length > 1 ? parts.slice(1).join(" ") : null;
-      // сохраняем пригласителя, если он есть в payload
+
       if (payload && !state.inviter) {
         state.inviter = payload;
         await setState(chatId, state);
       }
+
       // если доступа нет — сразу просим код (перезапуск не обходит)
       if (!state.access || state.closed) {
-        await sendTG(chatId, "Я консультант.\nОтвечаю на вопросы и объясняю механику работы.\n\nЧтобы открыть сессию, сначала активируйте доступ.\nВведите код доступа. Или запросите код у наставника");
+        await sendTG(
+          chatId,
+          "Я консультант.\nОтвечаю на вопросы и объясняю механику работы.\n\nЧтобы открыть сессию, сначала активируйте доступ.\nВведите код доступа. Или запросите код у наставника"
+        );
         return res.status(200).json({ ok: true });
       }
-      // если доступ есть — продолжаем обычным потоком (не отвечаем на /start отдельно)
+      // если доступ есть — продолжаем обычным потоком
     }
 
-    // --- ADMIN: добавление многоразового кода прямо из Телеги ---
-    // Чтобы работало: положи в Vercel env ADMIN_CHAT_ID = твой chat id (число)
+    // --- ADMIN: добавить одноразовый код из Телеги ---
+    // В Vercel env: ADMIN_CHAT_ID = твой chat id (число)
     if (process.env.ADMIN_CHAT_ID && String(chatId) === String(process.env.ADMIN_CHAT_ID)) {
       if (userText.toLowerCase().startsWith("/addcode ")) {
         const code = userText.split(" ").slice(1).join(" ").trim();
-        const ok = await addMultiCode(code);
-        await sendTG(chatId, ok ? `Ок. Код добавлен: ${normalizeText(code).toUpperCase()}` : "Не добавил. Код пустой.");
+        const ok = await addOneTimeCode(code);
+        await sendTG(chatId, ok ? `Ок. Код добавлен (one-time): ${normalizeText(code).toUpperCase()}` : "Не добавил. Код пустой.");
         return res.status(200).json({ ok: true });
       }
+
       if (userText.toLowerCase() === "/codes") {
-        // Upstash не дает smembers огромных сетов без риска, но для тестов норм
-        const list = await redis.smembers(MULTI_CODES_SET);
+        const list = await redis.smembers(ONE_TIME_CODES_SET);
         const txt = Array.isArray(list) && list.length
-          ? "Коды (multi):\n" + list.slice(0, 200).join("\n")
+          ? "Коды (one-time):\n" + list.slice(0, 200).join("\n")
           : "Кодов пока нет.";
         await sendTG(chatId, txt);
         return res.status(200).json({ ok: true });
@@ -113,9 +119,8 @@ export default async function handler(req, res) {
     }
 
     // --- ACCESS GATE ---
-    // Если доступ закрыт/нет доступа — принимаем только код
+    // Если доступа нет / сессия закрыта — принимаем только код
     if (!state.access || state.closed) {
-      // спец-кейс: потеряшка "не помню где взяла"
       const low = userText.toLowerCase();
       const looksLost =
         low.includes("не помню") ||
@@ -127,7 +132,7 @@ export default async function handler(req, res) {
         low.includes("youtube");
 
       if (looksLikeCode(userText)) {
-        const ok = await hasMultiCode(userText);
+        const ok = await consumeOneTimeCode(userText);
         if (!ok) {
           await sendTG(chatId, "Код не принят.\nПроверь символы и отправь код ещё раз.");
           return res.status(200).json({ ok: true });
@@ -137,7 +142,6 @@ export default async function handler(req, res) {
         state.closed = false;
         await setState(chatId, state);
 
-        // Стартуем сразу с вопросов шага 1 (без объяснений)
         await sendTG(
           chatId,
           "Ок, доступ активирован.\n\n1) Какой у вас опыт в трейдинге или инвестициях?\n2) Что для вас главное: технология управления риском, пассивный доход или партнёрские возможности?\n3) Если опыт есть: знакомы с принципом хеджирования (hedge)?"
