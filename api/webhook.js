@@ -66,6 +66,11 @@ export default async function handler(req, res) {
   try {
     const chatId = req.body?.message?.chat?.id;
     const userTextRaw = req.body?.message?.text;
+    // DEBUG: узнать chatId
+if (userTextRaw && userTextRaw.trim() === "/id") {
+  await sendTG(chatId, `Твой chatId: ${chatId}`);
+  return res.status(200).json({ ok: true });
+}
 
     if (!chatId || !userTextRaw) {
       return res.status(200).json({ ok: true });
