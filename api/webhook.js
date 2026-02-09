@@ -2,15 +2,161 @@ import { Redis } from "@upstash/redis";
 
 const redis = Redis.fromEnv();
 
+/**
+ * Настройки
+ * - MULTI_CODES_SET: Redis Set, где лежат многоразовые коды
+ * - STATE_KEY: per-chat state
+ */
+const MULTI_CODES_SET = "access:codes:multi";
+
+const FINAL_PHRASE =
+  "Я показал механику и варианты.\nЕсли захочешь продолжить или появятся новые вопросы — вернись к человеку, который дал ссылку. Он подхватит дальше.";
+
+const LOST_LINK_HELP =
+  "Если не помнишь, кто дал ссылку — ничего страшного.\nНапиши Юле в Telegram: @yuliyakuzminova\nОна поможет найти пригласителя и подскажет следующий шаг.";
+
+function normalizeText(t) {
+  return (t || "").toString().trim();
+}
+
+function looksLikeCode(t) {
+  // Простой формат: 6–32 символов, буквы/цифры/дефис/подчёркивание
+  const s = normalizeText(t);
+  return /^[A-Za-z0-9_-]{6,32}$/.test(s);
+}
+
+async function getState(chatId) {
+  const raw = await redis.get(`chat:${chatId}:state`);
+  if (!raw) return { access: false, closed: false, inviter: null, sawLostHelp: false };
+  try {
+    return typeof raw === "string" ? JSON.parse(raw) : raw;
+  } catch {
+    return { access: false, closed: false, inviter: null, sawLostHelp: false };
+  }
+}
+
+async function setState(chatId, state) {
+  await redis.set(`chat:${chatId}:state`, JSON.stringify(state));
+}
+
+async function hasMultiCode(code) {
+  const c = normalizeText(code).toUpperCase();
+  const ok = await redis.sismember(MULTI_CODES_SET, c);
+  return !!ok;
+}
+
+async function addMultiCode(code) {
+  const c = normalizeText(code).toUpperCase();
+  if (!c) return false;
+  await redis.sadd(MULTI_CODES_SET, c);
+  return true;
+}
+
+async function sendTG(chatId, text) {
+  await fetch(`https://api.telegram.org/bot${process.env.TG_TOKEN}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId, text }),
+  });
+}
+
 export default async function handler(req, res) {
   try {
     const chatId = req.body?.message?.chat?.id;
-    const userText = req.body?.message?.text;
+    const userTextRaw = req.body?.message?.text;
 
-    if (!chatId || !userText) {
+    if (!chatId || !userTextRaw) {
       return res.status(200).json({ ok: true });
     }
 
+    const userText = normalizeText(userTextRaw);
+
+    // --- STATE ---
+    const state = await getState(chatId);
+
+    // --- /start payload = inviter/ref binding ---
+    // Telegram: "/start SOMEPAYLOAD"
+    if (userText.startsWith("/start")) {
+      const parts = userText.split(" ").map(x => x.trim()).filter(Boolean);
+      const payload = parts.length > 1 ? parts.slice(1).join(" ") : null;
+      // сохраняем пригласителя, если он есть в payload
+      if (payload && !state.inviter) {
+        state.inviter = payload;
+        await setState(chatId, state);
+      }
+      // если доступа нет — сразу просим код (перезапуск не обходит)
+      if (!state.access || state.closed) {
+        await sendTG(chatId, "Доступ по коду.\nВведи код доступа.");
+        return res.status(200).json({ ok: true });
+      }
+      // если доступ есть — продолжаем обычным потоком (не отвечаем на /start отдельно)
+    }
+
+    // --- ADMIN: добавление многоразового кода прямо из Телеги ---
+    // Чтобы работало: положи в Vercel env ADMIN_CHAT_ID = твой chat id (число)
+    if (process.env.ADMIN_CHAT_ID && String(chatId) === String(process.env.ADMIN_CHAT_ID)) {
+      if (userText.toLowerCase().startsWith("/addcode ")) {
+        const code = userText.split(" ").slice(1).join(" ").trim();
+        const ok = await addMultiCode(code);
+        await sendTG(chatId, ok ? `Ок. Код добавлен: ${normalizeText(code).toUpperCase()}` : "Не добавил. Код пустой.");
+        return res.status(200).json({ ok: true });
+      }
+      if (userText.toLowerCase() === "/codes") {
+        // Upstash не дает smembers огромных сетов без риска, но для тестов норм
+        const list = await redis.smembers(MULTI_CODES_SET);
+        const txt = Array.isArray(list) && list.length
+          ? "Коды (multi):\n" + list.slice(0, 200).join("\n")
+          : "Кодов пока нет.";
+        await sendTG(chatId, txt);
+        return res.status(200).json({ ok: true });
+      }
+    }
+
+    // --- ACCESS GATE ---
+    // Если доступ закрыт/нет доступа — принимаем только код
+    if (!state.access || state.closed) {
+      // спец-кейс: потеряшка "не помню где взяла"
+      const low = userText.toLowerCase();
+      const looksLost =
+        low.includes("не помню") ||
+        low.includes("где взял") ||
+        low.includes("где взяла") ||
+        low.includes("потерял") ||
+        low.includes("потеряла") ||
+        low.includes("ютуб") ||
+        low.includes("youtube");
+
+      if (looksLikeCode(userText)) {
+        const ok = await hasMultiCode(userText);
+        if (!ok) {
+          await sendTG(chatId, "Код не принят.\nПроверь символы и отправь код ещё раз.");
+          return res.status(200).json({ ok: true });
+        }
+
+        state.access = true;
+        state.closed = false;
+        await setState(chatId, state);
+
+        // Стартуем сразу с вопросов шага 1 (без объяснений)
+        await sendTG(
+          chatId,
+          "Ок, доступ активирован.\n\n1) Какой у вас опыт в трейдинге или инвестициях?\n2) Что для вас главное: технология управления риском, пассивный доход или партнёрские возможности?\n3) Если опыт есть: знакомы с принципом хеджирования (hedge)?"
+        );
+        return res.status(200).json({ ok: true });
+      }
+
+      if (looksLost && !state.sawLostHelp) {
+        state.sawLostHelp = true;
+        await setState(chatId, state);
+        await sendTG(chatId, LOST_LINK_HELP + "\n\nДоступ по коду.\nВведи код доступа.");
+        return res.status(200).json({ ok: true });
+      }
+
+      await sendTG(chatId, "Доступ по коду.\nВведи код доступа.");
+      return res.status(200).json({ ok: true });
+    }
+
+    // --- LLM normal flow (есть доступ и сессия не закрыта) ---
     const SYSTEM_PROMPT = `
 РЕЖИМ ЗАКРЫТОЙ СЕССИИ
 Если ты уже произнёс фразу:
@@ -215,6 +361,7 @@ B) Зайти сейчас и протестировать стратегию ч
 — "подключи"
 — "попробую"
 Тогда:
+
 1. Не объясняй систему заново.
 2. Коротко подтверди готовность.
 3. Сразу направь к пригласившему партнёру, чтобы сохранить привязку.
@@ -234,6 +381,7 @@ B) Зайти сейчас и протестировать стратегию ч
 — нет комиссионных,
 — ты видишь систему в действии.
 Дальше есть два пути:
+
 1. Подождать автозапуск
 — и подключиться сразу к роботу.
 2. Начать сейчас вручную
@@ -342,11 +490,16 @@ B) Зайти сейчас и протестировать стратегию ч
 
 ПРАВИЛО ПОСЛЕ ФИНАЛА
 После этой фразы:
-— не задавай вопросов  
-— не предлагай помощь  
-— не продолжай диалог  
-— не пиши «спрашивай», «чем помочь», «что уточнить»  
-— не объясняй ничего повторно  
+— не задавай вопросов
+
+— не предлагай помощь
+
+— не продолжай диалог
+
+— не пиши «спрашивай», «чем помочь», «что уточнить»
+
+— не объясняй ничего повторно
+
 Если человек пишет после закрытия, отвечай только так:
 «Для новой сессии — обратись к человеку, который дал ссылку.»
 И больше ничего.
@@ -408,8 +561,8 @@ B) Зайти сейчас и протестировать стратегию ч
 
 Если пишет дерзко или про иксы — используй ЖЁСТКИЙ.
 КОНЕЦ ИНСТРУКЦИИ ДЛЯ AI
-
 `;
+
 
     const key = `chat:${chatId}:history`;
     const history = (await redis.get(key)) || [];
@@ -437,38 +590,32 @@ B) Зайти сейчас и протестировать стратегию ч
       const err = await r.text();
       console.log("OPENAI ERROR:", r.status, err);
 
-      await fetch(`https://api.telegram.org/bot${process.env.TG_TOKEN}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: "Я сейчас на техничке 😈 Напиши ещё раз через пару секунд.",
-        }),
-      });
-
+      await sendTG(chatId, "Я сейчас на техничке 😈 Напиши ещё раз через пару секунд.");
       return res.status(200).json({ ok: true });
     }
 
     const data = await r.json();
-    console.log("OPENAI RAW:", data);
 
     const answer =
       data.output_text ||
       data.output?.find(x => x.type === "message")?.content?.find(c => c.type === "output_text")?.text ||
       "Я завис 😈 Напиши ещё раз.";
 
+    // сохраняем историю
     await redis.set(key, [
       ...trimmed,
       { role: "user", content: userText },
       { role: "assistant", content: answer },
     ]);
 
-    await fetch(`https://api.telegram.org/bot${process.env.TG_TOKEN}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, text: answer }),
-    });
+    // если бот произнёс финал — закрываем доступ (чтобы дальше только код)
+    if (normalizeText(answer) === normalizeText(FINAL_PHRASE) || answer.includes("Я показал механику и варианты.")) {
+      state.closed = true;
+      state.access = false;
+      await setState(chatId, state);
+    }
 
+    await sendTG(chatId, answer);
     return res.status(200).json({ ok: true });
 
   } catch (e) {
