@@ -80,6 +80,13 @@ export default async function handler(req, res) {
   try {
     const chatId = req.body?.message?.chat?.id;
     const userTextRaw = req.body?.message?.text;
+    
+    // PAY: показать кнопку оплаты
+if (userTextRaw && userTextRaw.trim() === "/pay3") {
+  await sendInvoice990(chatId);
+  return res.status(200).json({ ok: true });
+}
+    
     // DEBUG: узнать chatId
 if (userTextRaw && userTextRaw.trim() === "/id") {
   await sendTG(chatId, `Твой chatId: ${chatId}`);
