@@ -61,7 +61,21 @@ async function sendTG(chatId, text) {
     body: JSON.stringify({ chat_id: chatId, text }),
   });
 }
-
+async function sendInvoice990(chatId) {
+  await fetch(`https://api.telegram.org/bot${process.env.TG_TOKEN}/sendInvoice`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: chatId,
+      title: "Консультация — 3 сессии",
+      description: "Пакет консультаций по системе Maneki Trading (3 сессии).",
+      payload: `pack_3_${chatId}_${Date.now()}`,
+      provider_token: process.env.PROVIDER_TOKEN,
+      currency: "RUB",
+      prices: [{ label: "3 сессии", amount: 99000 }],
+    }),
+  });
+}
 export default async function handler(req, res) {
   try {
     const chatId = req.body?.message?.chat?.id;
