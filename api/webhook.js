@@ -84,10 +84,7 @@ export default async function handler(req, res) {
     // START: красивый первый экран + автокнопка оплаты (только админу для скрина)
 if (userTextRaw && userTextRaw.trim() === "/start") {
   
-const intro = `Maneki Trading — консультация
-Консультационный бот по системе Maneki Trading.
-
-Что вы получите:
+const intro = `Что входит:
 • объяснение принципа работы
 • ответы на вопросы
 • рекомендации по началу работы
