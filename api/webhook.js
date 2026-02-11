@@ -80,6 +80,31 @@ export default async function handler(req, res) {
   try {
     const chatId = req.body?.message?.chat?.id;
     const userTextRaw = req.body?.message?.text;
+
+    // START: красивый первый экран + автокнопка оплаты (только админу для скрина)
+if (userTextRaw && userTextRaw.trim() === "/start") {
+  const intro =
+    "Maneki Trading — консультация\n" +
+    "Консультационный бот по системе Maneki Trading.\n\n" +
+    "Что входит:\n" +
+    "• объяснение принципа работы\n" +
+    "• ответы на вопросы\n" +
+    "• рекомендации по старту\n\n" +
+    "Чтобы получить доступ:\n" +
+    "1) оплатите пакет\n" +
+    "2) получите код доступа\n" +
+    "3) введите код в этом чате\n\n" +
+    "Оплата: кнопка ниже.";
+
+  await sendTG(chatId, intro);
+
+  // Автопоказ инвойса только для тебя (для скрина в ЮKassa)
+  if (String(chatId) === String(process.env.ADMIN_CHAT_ID)) {
+    await sendInvoice990(chatId);
+  }
+
+  return res.status(200).json({ ok: true });
+}
     
     // PAY: показать кнопку оплаты
 if (userTextRaw && userTextRaw.trim() === "/pay3") {
