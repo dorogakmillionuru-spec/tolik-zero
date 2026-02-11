@@ -83,8 +83,8 @@ export default async function handler(req, res) {
 
     // START: красивый первый экран + автокнопка оплаты (только админу для скрина)
 if (userTextRaw && userTextRaw.trim() === "/start") {
-  const intro =
-    "Maneki Trading — консультация
+  
+const intro = `Maneki Trading — консультация
 Консультационный бот по системе Maneki Trading.
 
 Что вы получите:
@@ -97,8 +97,8 @@ if (userTextRaw && userTextRaw.trim() === "/start") {
 2) получите код доступа
 3) введите код в этом чате
 
-Стоимость доступа — 990 ₽";
-
+Стоимость доступа — 990 ₽`;
+  
   await sendTG(chatId, intro);
 
   // Автопоказ инвойса только для тебя (для скрина в ЮKassa)
