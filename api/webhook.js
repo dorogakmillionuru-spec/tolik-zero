@@ -148,6 +148,24 @@ export default async function handler(req,res){
 
     const t = userTextRaw.trim();
 
+    // LINK: дать человеку его ссылку (рефка)
+if (t === "/link") {
+  const botUsername = process.env.BOT_USERNAME; // например: "maneki_consult_bot"
+  if (!botUsername) {
+    await sendTG(chatId, "Ссылка временно недоступна. Напиши Юле — она даст ссылку вручную.");
+    return res.status(200).json({ ok: true });
+  }
+
+await sendTG(
+  chatId,
+  `Твоя ссылка приглашения:
+https://t.me/${botUsername}?start=${chatId}
+
+Скопируй и отправь человеку.`
+);
+  return res.status(200).json({ ok: true });
+}
+
     // команды оплаты
     if (t === "/pay3"){ await sendInvoice(chatId,3); return res.status(200).json({ok:true}); }
     if (t === "/pay10"){ await sendInvoice(chatId,10); return res.status(200).json({ok:true}); }
