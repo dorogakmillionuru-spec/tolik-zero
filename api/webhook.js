@@ -4,214 +4,204 @@ const redis = Redis.fromEnv();
 
 /**
  * Настройки
- * - ONE_TIME_CODES_SET: Redis Set, где лежат ОДНОРАЗОВЫЕ коды
- * - STATE_KEY: per-chat state
  */
 const ONE_TIME_CODES_SET = "access:codes:one";
 
-const FINAL_PHRASE =
-  "Я показал механику и варианты.\nЕсли захочешь продолжить или появятся новые вопросы — вернись к человеку, который дал ссылку. Он подхватит дальше.";
-
 const LOST_LINK_HELP =
-  "Если не помнишь, кто дал ссылку — ничего страшного.\nНапиши Юле в Telegram: @yuliyakuzminova\nОна поможет найти пригласителя и подскажет следующий шаг.";
+  "Если не помнишь, кто дал ссылку — ничего страшного.\nНапиши Юле в Telegram: @yuliyakuzminova";
 
 function normalizeText(t) {
   return (t || "").toString().trim();
 }
 
 function looksLikeCode(t) {
-  // Формат: 6–32 символа, буквы/цифры/дефис/подчёркивание
   const s = normalizeText(t);
   return /^[A-Za-z0-9_-]{6,32}$/.test(s);
 }
 
+function genCode(len = 10) {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let out = "";
+  for (let i = 0; i < len; i++) {
+    out += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+  return out;
+}
+
 async function getState(chatId) {
   const raw = await redis.get(`chat:${chatId}:state`);
-  if (!raw) return { access: false, closed: false, inviter: null, sawLostHelp: false };
-  try {
-    return typeof raw === "string" ? JSON.parse(raw) : raw;
-  } catch {
-    return { access: false, closed: false, inviter: null, sawLostHelp: false };
-  }
+  if (!raw) return { access:false, closed:false, inviter:null };
+  try { return JSON.parse(raw); }
+  catch { return { access:false, closed:false, inviter:null }; }
 }
 
 async function setState(chatId, state) {
   await redis.set(`chat:${chatId}:state`, JSON.stringify(state));
 }
 
-// ✅ одноразовый код: если нашли — СРАЗУ УДАЛЯЕМ из набора
+// одноразовый код
 async function consumeOneTimeCode(code) {
   const c = normalizeText(code).toUpperCase();
-  if (!c) return false;
-  const removed = await redis.srem(ONE_TIME_CODES_SET, c); // 1 = был и удалили, 0 = не было
+  const removed = await redis.srem(ONE_TIME_CODES_SET, c);
   return removed === 1;
 }
 
-async function addOneTimeCode(code) {
-  const c = normalizeText(code).toUpperCase();
-  if (!c) return false;
-  await redis.sadd(ONE_TIME_CODES_SET, c);
-  return true;
+async function addManyOneTimeCodes(n) {
+  const codes = [];
+  for (let i = 0; i < n; i++) {
+    let c;
+    while (true) {
+      c = genCode();
+      const exists = await redis.sismember(ONE_TIME_CODES_SET, c);
+      if (!exists) break;
+    }
+    await redis.sadd(ONE_TIME_CODES_SET, c);
+    codes.push(c);
+  }
+  return codes;
 }
 
 async function sendTG(chatId, text) {
   await fetch(`https://api.telegram.org/bot${process.env.TG_TOKEN}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text }),
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body:JSON.stringify({ chat_id:chatId, text })
   });
 }
-async function sendInvoice990(chatId) {
+
+async function answerPreCheckoutQuery(id) {
+  await fetch(`https://api.telegram.org/bot${process.env.TG_TOKEN}/answerPreCheckoutQuery`, {
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body:JSON.stringify({ pre_checkout_query_id:id, ok:true })
+  });
+}
+
+// ===== ОПЛАТА =====
+async function sendInvoice(chatId, pack) {
+
+  const packs = {
+    3:{title:"Консультация — 3 сессии", amount:99000},
+    10:{title:"Консультация — 10 сессий", amount:299000},
+    30:{title:"Консультация — 30 сессий", amount:699000}
+  };
+
+  const p = packs[pack];
+  if (!p) return;
+
   await fetch(`https://api.telegram.org/bot${process.env.TG_TOKEN}/sendInvoice`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: chatId,
-      title: "Консультация — 3 сессии",
-      description: "Пакет консультаций по системе Maneki Trading (3 сессии).",
-      payload: `pack_3_${chatId}_${Date.now()}`,
-      provider_token: process.env.PROVIDER_TOKEN,
-      currency: "RUB",
-      prices: [{ label: "3 сессии", amount: 99000 }],
-    }),
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body:JSON.stringify({
+      chat_id:chatId,
+      title:p.title,
+      description:"Пакет консультаций Maneki Trading",
+      payload:`pack_${pack}_${chatId}_${Date.now()}`,
+      provider_token:process.env.PROVIDER_TOKEN,
+      currency:"RUB",
+      prices:[{label:`${pack} сессий`, amount:p.amount}]
+    })
   });
 }
-export default async function handler(req, res) {
-  try {
+
+export default async function handler(req,res){
+  try{
+
     const chatId = req.body?.message?.chat?.id;
     const userTextRaw = req.body?.message?.text;
 
-    // START: красивый первый экран + автокнопка оплаты (только админу для скрина)
-if (userTextRaw && userTextRaw.trim() === "/start") {
-  
-const intro = `Что входит:
-• объяснение принципа работы
-• ответы на вопросы
-• рекомендации по началу работы
-
-Как получить доступ:
-1) оплатите пакет
-2) получите код доступа
-3) введите код в этом чате
-
-Стоимость доступа — 990 ₽`;
-  
-  await sendTG(chatId, intro);
-
-  // Автопоказ инвойса только для тебя (для скрина в ЮKassa)
-  if (String(chatId) === String(process.env.ADMIN_CHAT_ID)) {
-    await sendInvoice990(chatId);
-  }
-
-  return res.status(200).json({ ok: true });
-}
-    
-    // PAY: показать кнопку оплаты
-if (userTextRaw && userTextRaw.trim() === "/pay3") {
-  await sendInvoice990(chatId);
-  return res.status(200).json({ ok: true });
-}
-    
-    // DEBUG: узнать chatId
-if (userTextRaw && userTextRaw.trim() === "/id") {
-  await sendTG(chatId, `Твой chatId: ${chatId}`);
-  return res.status(200).json({ ok: true });
-}
-
-    if (!chatId || !userTextRaw) {
-      return res.status(200).json({ ok: true });
+    // подтверждение оплаты
+    if (req.body?.pre_checkout_query?.id){
+      await answerPreCheckoutQuery(req.body.pre_checkout_query.id);
+      return res.status(200).json({ok:true});
     }
 
-    const userText = normalizeText(userTextRaw);
+    // успешная оплата
+    const successfulPayment = req.body?.message?.successful_payment;
+    if (chatId && successfulPayment){
 
-    // --- STATE ---
+      const payload = successfulPayment.invoice_payload || "";
+
+      let base = 3;
+      if (payload.startsWith("pack_10")) base = 10;
+      if (payload.startsWith("pack_30")) base = 30;
+
+      const bonusMap = {3:1,10:3,30:10};
+      const total = base + bonusMap[base];
+
+      const codes = await addManyOneTimeCodes(total);
+
+      await sendTG(chatId,
+        "Оплата принята ✅\n\n"+
+        `Твой пакет: ${base} + бонус ${bonusMap[base]}\n\n`+
+        "Коды доступа:\n"+
+        codes.map(c=>"• "+c).join("\n")+
+        "\n\nВведи любой код в этом чате."
+      );
+
+      return res.status(200).json({ok:true});
+    }
+
+    if (!chatId || !userTextRaw){
+      return res.status(200).json({ok:true});
+    }
+
+    const t = userTextRaw.trim();
+
+    // команды оплаты
+    if (t === "/pay3"){ await sendInvoice(chatId,3); return res.status(200).json({ok:true}); }
+    if (t === "/pay10"){ await sendInvoice(chatId,10); return res.status(200).json({ok:true}); }
+    if (t === "/pay30"){ await sendInvoice(chatId,30); return res.status(200).json({ok:true}); }
+
+    // старт
+    if (t.startsWith("/start")){
+
+      const state = await getState(chatId);
+
+      // рефералка
+      const parts = t.split(" ");
+      if (parts[1] && !state.inviter){
+        state.inviter = parts[1];
+        await setState(chatId,state);
+      }
+
+      await sendTG(chatId,
+        "Консультант Maneki Trading\n\n"+
+        "Как получить доступ:\n"+
+        "1) оплатите пакет\n"+
+        "2) получите коды\n"+
+        "3) введите код\n\n"+
+        "Оплата:\n"+
+        "/pay3\n/pay10\n/pay30"
+      );
+
+      return res.status(200).json({ok:true});
+    }
+
+    // проверка кода
     const state = await getState(chatId);
 
-    // --- /start payload = inviter/ref binding ---
-    // Telegram: "/start SOMEPAYLOAD"
-    if (userText.startsWith("/start")) {
-      const parts = userText.split(" ").map(x => x.trim()).filter(Boolean);
-      const payload = parts.length > 1 ? parts.slice(1).join(" ") : null;
+    if (!state.access || state.closed){
 
-      if (payload && !state.inviter) {
-        state.inviter = payload;
-        await setState(chatId, state);
-      }
-
-      // если доступа нет — сразу просим код (перезапуск не обходит)
-      if (!state.access || state.closed) {
-        await sendTG(
-          chatId,
-          "Я AI-консультант Maneki Trading.\nОтвечаю на вопросы и объясняю механику работы.\n\nЧтобы открыть сессию, сначала активируйте доступ.\nВведите код доступа. Или запросите код у наставника"
-        );
-        return res.status(200).json({ ok: true });
-      }
-      // если доступ есть — продолжаем обычным потоком
-    }
-
-    // --- ADMIN: добавить одноразовый код из Телеги ---
-    // В Vercel env: ADMIN_CHAT_ID = твой chat id (число)
-    if (process.env.ADMIN_CHAT_ID && String(chatId) === String(process.env.ADMIN_CHAT_ID)) {
-      if (userText.toLowerCase().startsWith("/addcode ")) {
-        const code = userText.split(" ").slice(1).join(" ").trim();
-        const ok = await addOneTimeCode(code);
-        await sendTG(chatId, ok ? `Ок. Код добавлен (one-time): ${normalizeText(code).toUpperCase()}` : "Не добавил. Код пустой.");
-        return res.status(200).json({ ok: true });
-      }
-
-      if (userText.toLowerCase() === "/codes") {
-        const list = await redis.smembers(ONE_TIME_CODES_SET);
-        const txt = Array.isArray(list) && list.length
-          ? "Коды (one-time):\n" + list.slice(0, 200).join("\n")
-          : "Кодов пока нет.";
-        await sendTG(chatId, txt);
-        return res.status(200).json({ ok: true });
-      }
-    }
-
-    // --- ACCESS GATE ---
-    // Если доступа нет / сессия закрыта — принимаем только код
-    if (!state.access || state.closed) {
-      const low = userText.toLowerCase();
-      const looksLost =
-        low.includes("не помню") ||
-        low.includes("где взял") ||
-        low.includes("где взяла") ||
-        low.includes("потерял") ||
-        low.includes("потеряла") ||
-        low.includes("ютуб") ||
-        low.includes("youtube");
-
-      if (looksLikeCode(userText)) {
-        const ok = await consumeOneTimeCode(userText);
-        if (!ok) {
-          await sendTG(chatId, "Код не принят.\nПроверь символы и отправь код ещё раз.");
-          return res.status(200).json({ ok: true });
+      if (looksLikeCode(t)){
+        const ok = await consumeOneTimeCode(t);
+        if (!ok){
+          await sendTG(chatId,"Код не принят");
+          return res.status(200).json({ok:true});
         }
 
         state.access = true;
         state.closed = false;
-        await setState(chatId, state);
+        await setState(chatId,state);
 
-        await sendTG(
-          chatId,
-          "Ок, доступ активирован.\n\n1) Какой у вас опыт в трейдинге или инвестициях?\n2) Что для вас главное: технология управления риском, пассивный доход или партнёрские возможности?\n3) Если опыт есть: знакомы с принципом хеджирования (hedge)?"
-        );
-        return res.status(200).json({ ok: true });
+        await sendTG(chatId,"Доступ открыт. Начинаем консультацию.");
+        return res.status(200).json({ok:true});
       }
 
-      if (looksLost && !state.sawLostHelp) {
-        state.sawLostHelp = true;
-        await setState(chatId, state);
-        await sendTG(chatId, LOST_LINK_HELP + "\n\nДоступ по коду.\nВведи код доступа.");
-        return res.status(200).json({ ok: true });
-      }
-
-      await sendTG(chatId, "Доступ по коду.\nВведи код доступа.");
-      return res.status(200).json({ ok: true });
+      await sendTG(chatId,"Введите код доступа.");
+      return res.status(200).json({ok:true});
     }
 
-    // --- LLM normal flow (есть доступ и сессия не закрыта) ---
     const SYSTEM_PROMPT = `
 РЕЖИМ ЗАКРЫТОЙ СЕССИИ
 Если ты уже произнёс фразу:
