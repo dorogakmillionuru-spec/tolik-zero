@@ -109,6 +109,31 @@ export default async function handler(req,res){
 
     const chatId = req.body?.message?.chat?.id;
     const userTextRaw = req.body?.message?.text;
+    const msg = req.body?.message;
+
+// ✅ УСПЕШНАЯ ОПЛАТА: уведомляем клиента + админа
+if (chatId && msg?.successful_payment) {
+  const sp = msg.successful_payment;
+  const amount = (sp.total_amount || 0) / 100;
+  const payload = sp.invoice_payload || "no_payload";
+
+  await sendTG(
+    chatId,
+    "Оплата прошла ✅\nСейчас выдадим код доступа. Напиши наставнику, который дал ссылку."
+  );
+
+  if (process.env.ADMIN_CHAT_ID) {
+    await sendTG(
+      process.env.ADMIN_CHAT_ID,
+      "💰 Новая оплата\n" +
+        `Сумма: ${amount} RUB\n` +
+        `payload: ${payload}\n` +
+        `chatId: ${chatId}`
+    );
+  }
+
+  return res.status(200).json({ ok: true });
+}
 
     // подтверждение оплаты
     if (req.body?.pre_checkout_query?.id){
