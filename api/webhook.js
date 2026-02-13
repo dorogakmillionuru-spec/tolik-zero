@@ -175,6 +175,7 @@ https://t.me/${botUsername}?start=${chatId}
     if (t.startsWith("/start")){
 
       const state = await getState(chatId);
+      await sendTG(chatId, "DEBUG: дошел до обработки команд");
 
       // рефералка
       const parts = t.split(" ");
