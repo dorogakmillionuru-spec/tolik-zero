@@ -140,7 +140,36 @@ if (chatId && msg?.successful_payment) {
       await answerPreCheckoutQuery(req.body.pre_checkout_query.id);
       return res.status(200).json({ok:true});
     }
+// DEBUG: фейк-оплата (только для админа). Удалим потом.
+if (
+  chatId &&
+  String(chatId) === String(process.env.ADMIN_CHAT_ID) &&
+  userTextRaw &&
+  userTextRaw.trim() === "/fakepay3"
+) {
+  const base = 3;
+  const bonusEnabled = (process.env.BONUS_ENABLED ?? "1") !== "0";
+  const bonusMap = { 3: 1, 10: 3, 30: 10 };
+  const bonus = bonusEnabled ? (bonusMap[base] || 0) : 0;
 
+  const total = base + bonus;
+  const codes = await addManyOneTimeCodes(total);
+
+  const lines = [
+    "ТЕСТОВАЯ ОПЛАТА ✅ (fake)",
+    "",
+    `Пакет: ${base} код(ов)` + (bonus ? ` + бонус ${bonus} = ${total}` : ""),
+    "",
+    "Коды доступа (одноразовые):",
+    ...codes.map(c => `• ${c}`),
+    "",
+    "Введи любой один код сюда — откроется сессия.",
+    "Важно: один код = один человек/одна сессия. Повторно не сработает.",
+  ];
+
+  await sendTG(chatId, lines.join("\n"));
+  return res.status(200).json({ ok: true });
+}
     // успешная оплата
     const successfulPayment = req.body?.message?.successful_payment;
     if (chatId && successfulPayment){
