@@ -10,6 +10,8 @@ const ONE_TIME_CODES_SET = "access:codes:one";
 const LOST_LINK_HELP =
   "Если не помнишь, кто дал ссылку — ничего страшного.\nНапиши Юле в Telegram: @yuliyakuzminova";
 
+const FINAL_PHRASE = "Я показал механику и варианты.";
+
 function normalizeText(t) {
   return (t || "").toString().trim();
 }
