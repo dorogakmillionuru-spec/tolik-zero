@@ -32,7 +32,7 @@ function genCode(len = 10) {
 
 async function getState(chatId) {
   const raw = await redis.get(`chat:${chatId}:state`);
-  if (!raw) return { access: false, closed: false, inviter: null };
+  if (!raw) return { access: false, closed: false, inviter: null, trialUsed: false };
 
   // Upstash иногда может вернуть уже объект
   if (typeof raw === "object") {
@@ -40,6 +40,7 @@ async function getState(chatId) {
       access: !!raw.access,
       closed: !!raw.closed,
       inviter: raw.inviter ?? null,
+      trialUsed: !!raw.trialUsed,
     };
   }
 
@@ -49,9 +50,10 @@ async function getState(chatId) {
       access: !!parsed.access,
       closed: !!parsed.closed,
       inviter: parsed.inviter ?? null,
+      trialUsed: !!parsed.trialUsed,
     };
   } catch {
-    return { access: false, closed: false, inviter: null };
+    return { access: false, closed: false, inviter: null, trialUsed: false };
   }
 }
 
@@ -102,6 +104,12 @@ async function answerPreCheckoutQuery(id) {
 
 // ===== ОПЛАТА =====
 async function sendInvoice(chatId, pack) {
+  const providerToken = process.env.PROVIDER_TOKEN;
+  if (!providerToken) {
+    await sendTG(chatId, "Оплата временно недоступна. Попроси код у наставника.");
+    return;
+  }
+
   const packs = {
     3: { title: "Консультация — 3 сессии", amount: 99000 },
     10: { title: "Консультация — 10 сессий", amount: 299000 },
@@ -119,11 +127,33 @@ async function sendInvoice(chatId, pack) {
       title: p.title,
       description: "Пакет консультаций Maneki Trading",
       payload: `pack_${pack}_${chatId}_${Date.now()}`,
-      provider_token: process.env.PROVIDER_TOKEN,
+      provider_token: providerToken,
       currency: "RUB",
       prices: [{ label: `${pack} сессий`, amount: p.amount }],
     }),
   });
+}
+
+// ===== ИСТОРИЯ (в JSON, чтобы не молчало) =====
+async function getHistory(chatId) {
+  const key = `chat:${chatId}:history`;
+  const raw = await redis.get(key);
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+async function setHistory(chatId, historyArr) {
+  const key = `chat:${chatId}:history`;
+  await redis.set(key, JSON.stringify(historyArr));
 }
 
 export default async function handler(req, res) {
@@ -185,38 +215,44 @@ export default async function handler(req, res) {
 
     const t = (userTextRaw || "").trim();
 
-    // DEBUG: chatId
-    if (t === "/id") {
-      await sendTG(chatId, `Твой chatId: ${chatId}`);
+    // --- STATE ---
+    const state = await getState(chatId);
+
+    // --- /start payload = inviter/ref binding ---
+    if (t.startsWith("/start")) {
+      const parts = t.split(" ").map((x) => x.trim()).filter(Boolean);
+      const payload = parts.length > 1 ? parts.slice(1).join(" ") : null;
+
+      if (payload && !state.inviter) {
+        state.inviter = payload;
+        await setState(chatId, state);
+      }
+
+      const intro =
+        "Консультант Maneki Trading\n\n" +
+        "Как получить доступ:\n" +
+        "• 1 бесплатная сессия при первом входе (один раз)\n" +
+        "• дальше — по коду от наставника или после оплаты\n\n" +
+        "Оплата:\n" +
+        "/pay3 — пакет 3\n" +
+        "/pay10 — пакет 10\n" +
+        "/pay30 — пакет 30\n\n" +
+        "Реф-ссылка:\n" +
+        "/link";
+
+      await sendTG(chatId, intro);
+
+      // если нет доступа и бесплатка уже использована — просим код
+      if ((!state.access || state.closed) && state.trialUsed) {
+        await sendTG(chatId, "Введите код доступа.");
+      }
+
       return res.status(200).json({ ok: true });
     }
 
-    // DEBUG: фейк-оплата (только для админа). Удалим потом.
-    if (
-      String(chatId) === String(process.env.ADMIN_CHAT_ID) &&
-      t === "/fakepay3"
-    ) {
-      const base = 3;
-      const bonusEnabled = (process.env.BONUS_ENABLED ?? "1") !== "0";
-      const bonusMap = { 3: 1, 10: 3, 30: 10 };
-      const bonus = bonusEnabled ? (bonusMap[base] || 0) : 0;
-
-      const total = base + bonus;
-      const codes = await addManyOneTimeCodes(total);
-
-      const lines = [
-        "ТЕСТОВАЯ ОПЛАТА ✅ (fake)",
-        "",
-        `Пакет: ${base} код(ов)` + (bonus ? ` + бонус ${bonus} = ${total}` : ""),
-        "",
-        "Коды доступа (одноразовые):",
-        ...codes.map((c) => `• ${c}`),
-        "",
-        "Введи любой один код сюда — откроется сессия.",
-        "Важно: один код = один человек/одна сессия. Повторно не сработает.",
-      ];
-
-      await sendTG(chatId, lines.join("\n"));
+    // DEBUG: chatId
+    if (t === "/id") {
+      await sendTG(chatId, `Твой chatId: ${chatId}`);
       return res.status(200).json({ ok: true });
     }
 
@@ -249,45 +285,46 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true });
     }
 
-    // старт
-    if (t.startsWith("/start")) {
-      const state = await getState(chatId);
+    // ===== АДМИН: коды себе (ручной выпуск) =====
+    // /mk3 /mk10 /mk30 — выдаёт коды в этот чат (только админу)
+    if (String(chatId) === String(process.env.ADMIN_CHAT_ID)) {
+      if (t === "/mk3" || t === "/mk10" || t === "/mk30") {
+        const base = t === "/mk10" ? 10 : t === "/mk30" ? 30 : 3;
+        const bonusEnabled = (process.env.BONUS_ENABLED ?? "1") !== "0";
+        const bonusMap = { 3: 1, 10: 3, 30: 10 };
+        const bonus = bonusEnabled ? (bonusMap[base] || 0) : 0;
 
-      // рефералка
-      const parts = t.split(" ");
-      if (parts[1] && !state.inviter) {
-        state.inviter = parts[1];
-        await setState(chatId, state);
+        const total = base + bonus;
+        const codes = await addManyOneTimeCodes(total);
+
+        await sendTG(
+          chatId,
+          "Коды для админа ✅\n\n" +
+            `Пакет: ${base}` +
+            (bonus ? ` + бонус ${bonus} = ${total}` : "") +
+            "\n\n" +
+            codes.map((c) => "• " + c).join("\n")
+        );
+        return res.status(200).json({ ok: true });
       }
-
-      await sendTG(
-        chatId,
-        "Консультант Maneki Trading\n\n" +
-          "Как получить доступ:\n" +
-          "1) оплатите пакет\n" +
-          "2) получите коды\n" +
-          "3) введите код\n\n" +
-          "Оплата:\n" +
-          "/pay3\n/pay10\n/pay30"
-      );
-
-      // Если доступа нет — сразу попросим код (чтобы не ждать следующего сообщения)
-      const s2 = await getState(chatId);
-      if (!s2.access || s2.closed) {
-        await sendTG(chatId, "Введите код доступа.");
-      }
-
-      return res.status(200).json({ ok: true });
     }
 
-    // проверка кода
-    const state = await getState(chatId);
+    // ===== ACCESS GATE =====
+    // 1) Бесплатная сессия (один раз на chatId), если ещё не использована
+    if ((!state.access || state.closed) && !state.trialUsed) {
+      state.access = true;
+      state.closed = false;
+      state.trialUsed = true;
+      await setState(chatId, state);
+      // дальше идём в LLM-ветку без лишних сообщений (чтобы 1-е сообщение было вопросами по промту)
+    }
 
+    // 2) Если всё ещё нет доступа — принимаем только код
     if (!state.access || state.closed) {
       if (looksLikeCode(t)) {
         const ok = await consumeOneTimeCode(t);
         if (!ok) {
-          await sendTG(chatId, "Код не принят");
+          await sendTG(chatId, "Код не принят.\nПроверь символы и отправь ещё раз.");
           return res.status(200).json({ ok: true });
         }
 
@@ -303,6 +340,8 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true });
     }
 
+    // ===== LLM normal flow =====
+    // ❗️ПРОМТ НЕ ТРОГАЮ — ниже твой SYSTEM_PROMPT 1:1
     const SYSTEM_PROMPT = `
 РЕЖИМ ЗАКРЫТОЙ СЕССИИ
 Если ты уже произнёс фразу:
@@ -709,14 +748,13 @@ B) Зайти сейчас и протестировать стратегию ч
 КОНЕЦ ИНСТРУКЦИИ ДЛЯ AI
 `;
 
-    const key = `chat:${chatId}:history`;
-    const history = (await redis.get(key)) || [];
+    const history = await getHistory(chatId);
     const trimmed = Array.isArray(history) ? history.slice(-20) : [];
 
     const messages = [
       { role: "system", content: SYSTEM_PROMPT },
       ...trimmed,
-     { role: "user", content: t },
+      { role: "user", content: t },
     ];
 
     const r = await fetch("https://api.openai.com/v1/responses", {
@@ -734,7 +772,6 @@ B) Зайти сейчас и протестировать стратегию ч
     if (!r.ok) {
       const err = await r.text();
       console.log("OPENAI ERROR:", r.status, err);
-
       await sendTG(chatId, "Я сейчас на техничке 😈 Напиши ещё раз через пару секунд.");
       return res.status(200).json({ ok: true });
     }
@@ -743,13 +780,12 @@ B) Зайти сейчас и протестировать стратегию ч
 
     const answer =
       data.output_text ||
-      data.output?.find(x => x.type === "message")?.content?.find(c => c.type === "output_text")?.text ||
+      data.output?.find((x) => x.type === "message")?.content?.find((c) => c.type === "output_text")?.text ||
       "Я завис 😈 Напиши ещё раз.";
 
-    // сохраняем историю
-    await redis.set(key, [
+    await setHistory(chatId, [
       ...trimmed,
-     { role: "user", content: t },
+      { role: "user", content: t },
       { role: "assistant", content: answer },
     ]);
 
@@ -762,7 +798,6 @@ B) Зайти сейчас и протестировать стратегию ч
 
     await sendTG(chatId, answer);
     return res.status(200).json({ ok: true });
-
   } catch (e) {
     console.log("WEBHOOK FATAL:", e);
     return res.status(200).json({ ok: true });
