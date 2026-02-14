@@ -258,6 +258,8 @@ if (t === "/help" || t === "/support") {
 
     // DEBUG: chatId
     if (t === "/id") {
+
+      
       await sendTG(chatId, `Твой chatId: ${chatId}`);
       return res.status(200).json({ ok: true });
     }
@@ -277,6 +279,30 @@ if (t === "/help" || t === "/support") {
       return res.status(200).json({ ok: true });
     }
 
+    // DEBUG: фейк-оплата (только для админа)
+if (String(chatId) === String(process.env.ADMIN_CHAT_ID) && t === "/fakepay3") {
+  const base = 3;
+
+  const bonusEnabled = (process.env.BONUS_ENABLED ?? "1") !== "0";
+  const bonusMap = { 3: 1, 10: 3, 30: 10 };
+  const bonus = bonusEnabled ? (bonusMap[base] || 0) : 0;
+
+  const total = base + bonus;
+  const codes = await addManyOneTimeCodes(total);
+
+  const lines = [
+    "ТЕСТОВАЯ ОПЛАТА ✅ (fake)",
+    "",
+    `Пакет: ${base} код(ов)` + (bonus ? ` + бонус ${bonus} = ${total}` : ""),
+    "",
+    "Коды доступа:",
+    ...codes.map((c) => `• ${c}`)
+  ];
+
+  await sendTG(chatId, lines.join("\n"));
+  return res.status(200).json({ ok: true });
+}
+    
     // команды оплаты
     if (t === "/pay3") {
       await sendInvoice(chatId, 3);
