@@ -707,7 +707,6 @@ B) Зайти сейчас и протестировать стратегию ч
 КОНЕЦ ИНСТРУКЦИИ ДЛЯ AI
 `;
 
-
     const key = `chat:${chatId}:history`;
     const history = (await redis.get(key)) || [];
     const trimmed = Array.isArray(history) ? history.slice(-20) : [];
@@ -715,7 +714,7 @@ B) Зайти сейчас и протестировать стратегию ч
     const messages = [
       { role: "system", content: SYSTEM_PROMPT },
       ...trimmed,
-      { role: "user", content: userText },
+     { role: "user", content: t },
     ];
 
     const r = await fetch("https://api.openai.com/v1/responses", {
@@ -748,7 +747,7 @@ B) Зайти сейчас и протестировать стратегию ч
     // сохраняем историю
     await redis.set(key, [
       ...trimmed,
-      { role: "user", content: userText },
+     { role: "user", content: t },
       { role: "assistant", content: answer },
     ]);
 
