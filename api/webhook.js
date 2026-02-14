@@ -111,6 +111,8 @@ export default async function handler(req,res){
     const userTextRaw = req.body?.message?.text;
     const msg = req.body?.message;
 
+    const t = (userTextRaw || "").trim();
+
 // ✅ УСПЕШНАЯ ОПЛАТА: уведомляем клиента + админа
 if (chatId && msg?.successful_payment) {
   const sp = msg.successful_payment;
