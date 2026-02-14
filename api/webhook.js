@@ -202,8 +202,6 @@ if (
       return res.status(200).json({ok:true});
     }
 
-    const t = userTextRaw.trim();
-
     // DEBUG: chatId
 if (t === "/id") {
   await sendTG(chatId, `Твой chatId: ${chatId}`);
