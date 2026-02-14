@@ -784,6 +784,8 @@ const slowTimer = setTimeout(() => {
       return res.status(200).json({ ok: true });
     }
 
+    await redis.set(`chat:${chatId}:state`, JSON.stringify({ access: true, closed: false }));
+    
     const data = await r.json();
 
     const answer =
