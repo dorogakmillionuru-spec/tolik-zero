@@ -215,6 +215,12 @@ export default async function handler(req, res) {
 
     const t = (userTextRaw || "").trim();
 
+    // HELP: поддержка
+if (t === "/help" || t === "/support") {
+  await sendTG(chatId, "Если что-то не работает или потерялся — напиши Юле: @yuliyakuzminova");
+  return res.status(200).json({ ok: true });
+}
+
     // --- STATE ---
     const state = await getState(chatId);
 
