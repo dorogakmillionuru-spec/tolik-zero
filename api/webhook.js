@@ -322,7 +322,7 @@ await sendTG(chatId, `Твой наставник: ${Name || "наставник
     }
 // DEBUG: показать, к кому привязан (inviter)
 if (t === "/inviter") {
-  const inv = ;
+ const inv = state.inviter;
   if (inv) {
     await sendTG(chatId, `Ты привязан(а) к наставнику (chatId): ${inv}`);
   } else {
