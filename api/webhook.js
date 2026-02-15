@@ -799,32 +799,41 @@ B) Зайти сейчас и протестировать стратегию ч
 
     const history = await getHistory(chatId);
     const trimmed = Array.isArray(history) ? history.slice(-20) : [];
+const messages = [
+  { role: "system", content: SYSTEM_PROMPT },
+  ...trimmed,
+  { role: "user", content: t },
+];
 
-    const messages = [
-      { role: "system", content: SYSTEM_PROMPT },
-      ...trimmed,
-      { role: "user", content: t },
-    ];
+// если OpenAI долго отвечает — через 12 сек напомним, что бот жив
+let slowTimer = null;
 
-    // если OpenAI долго отвечает — через 12 сек напомним, что бот жив
-const slowTimer = setTimeout(() => {
-  void sendTG(
-    chatId,
-    "Я думаю 😈\nЕсли зависну — просто напиши ещё раз.\n\nЕсли совсем тишина — Юля: @yuliyakuzminova"
-  );
-}, 12000);
-    
-    const r = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-4.1-mini",
-        input: messages,
-      }),
-    });
+// НЕ показываем "Я думаю" на командах (/link, /pay3 и т.п.)
+if (!String(t || "").trim().startsWith("/")) {
+  slowTimer = setTimeout(() => {
+    void sendTG(
+      chatId,
+      "Я думаю 😈\nЕсли зависну — просто напиши ещё раз.\n\nЕсли совсем тишина — Юля: @yuliyakuzminova"
+    );
+  }, 12000);
+}
+
+let r;
+try {
+  r = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: "gpt-4.1-mini",
+      input: messages,
+    }),
+  });
+} finally {
+  if (slowTimer) clearTimeout(slowTimer);
+}
 
     if (!r.ok) {
       const err = await r.text();
