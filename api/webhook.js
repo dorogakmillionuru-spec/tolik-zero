@@ -96,6 +96,36 @@ async function sendTG(chatId, text, opts = {}) {
   });
 }
 
+async function getChatInfo(chatId) {
+  const r = await fetch(`https://api.telegram.org/bot${process.env.TG_TOKEN}/getChat?chat_id=${chatId}`);
+  const j = await r.json();
+  if (!j.ok) return null;
+  return j.result;
+}
+
+function formatMentorName(chat) {
+  if (!chat) return null;
+
+  // приоритет: @username → first_name last_name → "наставник"
+  if (chat.username) return `@${chat.username}`.trim();
+
+  const first = (chat.first_name || "").trim();
+  const last = (chat.last_name || "").trim();
+  const full = `${first} ${last}`.trim();
+
+  return full || "наставник";
+}
+
+async function getMentorLine(inviterId) {
+  if (!inviterId) return null;
+
+  const chat = await getChatInfo(inviterId);
+  const name = formatMentorName(chat) || "наставник";
+
+  // кликабельная ссылка на ЛС наставника
+  return `Если хочешь продолжить — напиши наставнику (${name}):\n tg://user?id=${inviterId}`;
+}
+
 async function answerPreCheckoutQuery(id) {
   await fetch(
     `https://api.telegram.org/bot${process.env.TG_TOKEN}/answerPreCheckoutQuery`,
