@@ -312,9 +312,7 @@ await sendTG(chatId, intro);
         return res.status(200).json({ ok: true });
       }
       
-if () {
- await sendTG(chatId, `Твой наставник: ${Name || "наставник"}`);
-}
+await sendTG(chatId, `Твой наставник: ${Name || "наставник"}`);
       
       await sendTG(
         chatId,
