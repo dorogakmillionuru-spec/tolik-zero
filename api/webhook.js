@@ -83,11 +83,16 @@ async function addManyOneTimeCodes(n) {
   return codes;
 }
 
-async function sendTG(chatId, text) {
+async function sendTG(chatId, text, opts = {}) {
   await fetch(`https://api.telegram.org/bot${process.env.TG_TOKEN}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text }),
+    body: JSON.stringify({
+      chat_id: chatId,
+      text,
+      parse_mode: opts.parse_mode || undefined,
+      disable_web_page_preview: opts.disable_web_page_preview ?? true,
+    }),
   });
 }
 
