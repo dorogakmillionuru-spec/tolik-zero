@@ -285,7 +285,17 @@ await sendTG(chatId, intro);
       );
       return res.status(200).json({ ok: true });
     }
-
+// DEBUG: показать, к кому привязан (inviter)
+if (t === "/inviter") {
+  const inv = state.inviter;
+  if (inv) {
+    await sendTG(chatId, `Ты привязан(а) к наставнику (chatId): ${inv}`);
+  } else {
+    await sendTG(chatId, "Наставник не привязан. Зайди в бота по реф-ссылке (с ?start=...).");
+  }
+  return res.status(200).json({ ok: true });
+}
+    
     // DEBUG: фейк-оплата (только для админа)
 if (String(chatId) === String(process.env.ADMIN_CHAT_ID) && t === "/fakepay3") {
   const base = 3;
