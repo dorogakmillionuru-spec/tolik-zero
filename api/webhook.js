@@ -264,9 +264,12 @@ if (t === "/help" || t === "/support") {
       const parts = t.split(" ").map((x) => x.trim()).filter(Boolean);
       const payload = parts.length > 1 ? parts.slice(1).join(" ") : null;
 
-   if (payload && !) {
-   = payload;
-  Name = user?.first_name || "наставник";
+      if (payload && !state.inviter) {
+  state.inviter = payload;
+
+  const mentorChat = await getChatInfo(payload);
+  state.inviterName = formatMentorName(mentorChat) || "наставник";
+
   await setState(chatId, state);
 }
 
