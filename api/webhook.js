@@ -234,10 +234,11 @@ if (t === "/help" || t === "/support") {
       const parts = t.split(" ").map((x) => x.trim()).filter(Boolean);
       const payload = parts.length > 1 ? parts.slice(1).join(" ") : null;
 
-      if (payload && !state.inviter) {
-        state.inviter = payload;
-        await setState(chatId, state);
-      }
+   if (payload && !state.inviter) {
+  state.inviter = payload;
+  state.inviterName = user?.first_name || "наставник";
+  await setState(chatId, state);
+}
 
     const intro = `Привет 🙂 Я Толик.
 
@@ -278,7 +279,11 @@ await sendTG(chatId, intro);
         await sendTG(chatId, "Ссылка временно недоступна. " + LOST_LINK_HELP);
         return res.status(200).json({ ok: true });
       }
-
+      
+if (state.inviter) {
+ await sendTG(chatId, `Твой наставник: ${state.inviterName || "наставник"}`);
+}
+      
       await sendTG(
         chatId,
         `Твоя ссылка приглашения:\nhttps://t.me/${botUsername}?start=${chatId}\n\nСкопируй и отправь человеку.`
