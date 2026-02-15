@@ -264,9 +264,9 @@ if (t === "/help" || t === "/support") {
       const parts = t.split(" ").map((x) => x.trim()).filter(Boolean);
       const payload = parts.length > 1 ? parts.slice(1).join(" ") : null;
 
-   if (payload && !state.inviter) {
-  state.inviter = payload;
-  state.inviterName = user?.first_name || "наставник";
+   if (payload && !) {
+   = payload;
+  Name = user?.first_name || "наставник";
   await setState(chatId, state);
 }
 
@@ -310,8 +310,8 @@ await sendTG(chatId, intro);
         return res.status(200).json({ ok: true });
       }
       
-if (state.inviter) {
- await sendTG(chatId, `Твой наставник: ${state.inviterName || "наставник"}`);
+if () {
+ await sendTG(chatId, `Твой наставник: ${Name || "наставник"}`);
 }
       
       await sendTG(
@@ -322,7 +322,7 @@ if (state.inviter) {
     }
 // DEBUG: показать, к кому привязан (inviter)
 if (t === "/inviter") {
-  const inv = state.inviter;
+  const inv = ;
   if (inv) {
     await sendTG(chatId, `Ты привязан(а) к наставнику (chatId): ${inv}`);
   } else {
@@ -904,7 +904,7 @@ if (answer.includes("Я показал механику") || answer.includes("Е
 
   const mentorLine = state?.inviter
     ? `Если хочешь продолжить — напиши наставнику (он дал ссылку):
-tg://user?id=${state.inviter}`
+tg://user?id=${}`
     : `Если не помнишь, кто дал ссылку — ничего страшного.
 Напиши Юле: https://t.me/yuliyakuzminova`;
 
