@@ -32,7 +32,14 @@ function genCode(len = 10) {
 
 async function getState(chatId) {
   const raw = await redis.get(`chat:${chatId}:state`);
-  if (!raw) return { access: false, closed: false, inviter: null, trialUsed: false };
+  if (!raw)
+    return {
+      access: false,
+      closed: false,
+      inviter: null,
+      inviterName: null,
+      trialUsed: false,
+    };
 
   // Upstash иногда может вернуть уже объект
   if (typeof raw === "object") {
@@ -40,6 +47,7 @@ async function getState(chatId) {
       access: !!raw.access,
       closed: !!raw.closed,
       inviter: raw.inviter ?? null,
+      inviterName: raw.inviterName ?? null,
       trialUsed: !!raw.trialUsed,
     };
   }
@@ -50,10 +58,17 @@ async function getState(chatId) {
       access: !!parsed.access,
       closed: !!parsed.closed,
       inviter: parsed.inviter ?? null,
+      inviterName: parsed.inviterName ?? null,
       trialUsed: !!parsed.trialUsed,
     };
   } catch {
-    return { access: false, closed: false, inviter: null, trialUsed: false };
+    return {
+      access: false,
+      closed: false,
+      inviter: null,
+      inviterName: null,
+      trialUsed: false,
+    };
   }
 }
 
@@ -82,21 +97,27 @@ async function addManyOneTimeCodes(n) {
   }
   return codes;
 }
+
 async function sendTG(chatId, text, opts = {}) {
-  await fetch(`https://api.telegram.org/bot${process.env.TG_TOKEN}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text,
-      parse_mode: opts.parse_mode ?? undefined,
-      disable_web_page_preview: opts.disable_web_page_preview ?? undefined
-    })
-  });
+  await fetch(
+    `https://api.telegram.org/bot${process.env.TG_TOKEN}/sendMessage`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text,
+        parse_mode: opts.parse_mode ?? undefined,
+        disable_web_page_preview: opts.disable_web_page_preview ?? true,
+      }),
+    }
+  );
 }
 
 async function getChatInfo(chatId) {
-  const r = await fetch(`https://api.telegram.org/bot${process.env.TG_TOKEN}/getChat?chat_id=${chatId}`);
+  const r = await fetch(
+    `https://api.telegram.org/bot${process.env.TG_TOKEN}/getChat?chat_id=${chatId}`
+  );
   const j = await r.json();
   if (!j.ok) return null;
   return j.result;
@@ -115,12 +136,11 @@ function formatMentorName(chat) {
   return full || "наставник";
 }
 
-async function getMentorLine(inviterId) {
+async function getMentorLine(state) {
+  const inviterId = state?.inviter;
   if (!inviterId) return null;
 
-  const chat = await getChatInfo(inviterId);
-  const name = formatMentorName(chat) || "наставник";
-
+  const name = state?.inviterName || "наставник";
   // кликабельная ссылка на ЛС наставника
   return `Если хочешь продолжить — напиши наставнику (${name}):\n tg://user?id=${inviterId}`;
 }
@@ -168,7 +188,7 @@ async function sendInvoice(chatId, pack) {
   });
 }
 
-// ===== ИСТОРИЯ (в JSON, чтобы не молчало) =====
+// ===== ИСТОРИЯ =====
 async function getHistory(chatId) {
   const key = `chat:${chatId}:history`;
   const raw = await redis.get(key);
@@ -192,7 +212,7 @@ async function setHistory(chatId, historyArr) {
 
 export default async function handler(req, res) {
   try {
-    // 1) Подтверждение оплаты (Telegram шлёт это отдельным апдейтом)
+    // 1) Подтверждение оплаты
     if (req.body?.pre_checkout_query?.id) {
       await answerPreCheckoutQuery(req.body.pre_checkout_query.id);
       return res.status(200).json({ ok: true });
@@ -250,10 +270,13 @@ export default async function handler(req, res) {
     const t = (userTextRaw || "").trim();
 
     // HELP: поддержка
-if (t === "/help" || t === "/support") {
-  await sendTG(chatId, "Если что-то не работает или потерялся — напиши Юле: @yuliyakuzminova");
-  return res.status(200).json({ ok: true });
-}
+    if (t === "/help" || t === "/support") {
+      await sendTG(
+        chatId,
+        "Если что-то не работает или потерялся — напиши Юле: @yuliyakuzminova"
+      );
+      return res.status(200).json({ ok: true });
+    }
 
     // --- STATE ---
     const state = await getState(chatId);
@@ -264,15 +287,15 @@ if (t === "/help" || t === "/support") {
       const payload = parts.length > 1 ? parts.slice(1).join(" ") : null;
 
       if (payload && !state.inviter) {
-  state.inviter = payload;
+        state.inviter = payload;
 
-  const mentorChat = await getChatInfo(payload);
-  state.inviterName = formatMentorName(mentorChat) || "наставник";
+        const mentorChat = await getChatInfo(payload);
+        state.inviterName = formatMentorName(mentorChat) || "наставник";
 
-  await setState(chatId, state);
-}
+        await setState(chatId, state);
+      }
 
-    const intro = `Привет 🙂 Я Толик.
+      const intro = `Привет 🙂 Я Толик.
 
 Сразу скажу: первая сессия — бесплатная (чтобы ты понял(а), что это вообще такое).
 
@@ -286,7 +309,7 @@ if (t === "/help" || t === "/support") {
 2) пробовал(а), но был негативный опыт
 3) есть опыт`;
 
-await sendTG(chatId, intro);
+      await sendTG(chatId, intro);
 
       // если нет доступа и бесплатка уже использована — просим код
       if ((!state.access || state.closed) && state.trialUsed) {
@@ -298,8 +321,6 @@ await sendTG(chatId, intro);
 
     // DEBUG: chatId
     if (t === "/id") {
-
-      
       await sendTG(chatId, `Твой chatId: ${chatId}`);
       return res.status(200).json({ ok: true });
     }
@@ -311,50 +332,57 @@ await sendTG(chatId, intro);
         await sendTG(chatId, "Ссылка временно недоступна. " + LOST_LINK_HELP);
         return res.status(200).json({ ok: true });
       }
-      
-await sendTG(chatId, `Твой наставник: ${Name || "наставник"}`);
-      
+
+      // покажем наставника (если привязан)
+      if (state.inviter) {
+        await sendTG(chatId, `Твой наставник: ${state.inviterName || "наставник"}`);
+      }
+
       await sendTG(
         chatId,
         `Твоя ссылка приглашения:\nhttps://t.me/${botUsername}?start=${chatId}\n\nСкопируй и отправь человеку.`
       );
       return res.status(200).json({ ok: true });
     }
-// DEBUG: показать, к кому привязан (inviter)
-if (t === "/inviter") {
- const inv = state.inviter;
-  if (inv) {
-    await sendTG(chatId, `Ты привязан(а) к наставнику (chatId): ${inv}`);
-  } else {
-    await sendTG(chatId, "Наставник не привязан. Зайди в бота по реф-ссылке (с ?start=...).");
-  }
-  return res.status(200).json({ ok: true });
-}
-    
+
+    // DEBUG: показать, к кому привязан (inviter)
+    if (t === "/inviter") {
+      const inv = state.inviter;
+      if (inv) {
+        await sendTG(chatId, `Ты привязан(а) к наставнику (chatId): ${inv}`);
+      } else {
+        await sendTG(
+          chatId,
+          "Наставник не привязан. Зайди в бота по реф-ссылке (с ?start=...)."
+        );
+      }
+      return res.status(200).json({ ok: true });
+    }
+
     // DEBUG: фейк-оплата (только для админа)
-if (String(chatId) === String(process.env.ADMIN_CHAT_ID) && t === "/fakepay3") {
-  const base = 3;
+    if (String(chatId) === String(process.env.ADMIN_CHAT_ID) && t === "/fakepay3") {
+      const base = 3;
 
-  const bonusEnabled = (process.env.BONUS_ENABLED ?? "1") !== "0";
-  const bonusMap = { 3: 1, 10: 3, 30: 10 };
-  const bonus = bonusEnabled ? (bonusMap[base] || 0) : 0;
+      const bonusEnabled = (process.env.BONUS_ENABLED ?? "1") !== "0";
+      const bonusMap = { 3: 1, 10: 3, 30: 10 };
+      const bonus = bonusEnabled ? (bonusMap[base] || 0) : 0;
 
-  const total = base + bonus;
-  const codes = await addManyOneTimeCodes(total);
+      const total = base + bonus;
+      const codes = await addManyOneTimeCodes(total);
 
-  const lines = [
-    "ТЕСТОВАЯ ОПЛАТА ✅ (fake)",
-    "",
-    `Пакет: ${base} код(ов)` + (bonus ? ` + бонус ${bonus} = ${total}` : ""),
-    "",
-    "Коды доступа:",
-    ...codes.map((c) => `• ${c}`)
-  ];
+      const lines = [
+        "ТЕСТОВАЯ ОПЛАТА ✅ (fake)",
+        "",
+        `Пакет: ${base} код(ов)` + (bonus ? ` + бонус ${bonus} = ${total}` : ""),
+        "",
+        "Коды доступа:",
+        ...codes.map((c) => `• ${c}`),
+      ];
 
-  await sendTG(chatId, lines.join("\n"));
-  return res.status(200).json({ ok: true });
-}
-    
+      await sendTG(chatId, lines.join("\n"));
+      return res.status(200).json({ ok: true });
+    }
+
     // команды оплаты
     if (t === "/pay3") {
       await sendInvoice(chatId, 3);
@@ -370,7 +398,6 @@ if (String(chatId) === String(process.env.ADMIN_CHAT_ID) && t === "/fakepay3") {
     }
 
     // ===== АДМИН: коды себе (ручной выпуск) =====
-    // /mk3 /mk10 /mk30 — выдаёт коды в этот чат (только админу)
     if (String(chatId) === String(process.env.ADMIN_CHAT_ID)) {
       if (t === "/mk3" || t === "/mk10" || t === "/mk30") {
         const base = t === "/mk10" ? 10 : t === "/mk30" ? 30 : 3;
@@ -400,7 +427,7 @@ if (String(chatId) === String(process.env.ADMIN_CHAT_ID) && t === "/fakepay3") {
       state.closed = false;
       state.trialUsed = true;
       await setState(chatId, state);
-      // дальше идём в LLM-ветку без лишних сообщений (чтобы 1-е сообщение было вопросами по промту)
+      // дальше идём в LLM-ветку без лишних сообщений
     }
 
     // 2) Если всё ещё нет доступа — принимаем только код
@@ -425,7 +452,7 @@ if (String(chatId) === String(process.env.ADMIN_CHAT_ID) && t === "/fakepay3") {
     }
 
     // ===== LLM normal flow =====
-    // ❗️ПРОМТ НЕ ТРОГАЮ — ниже твой SYSTEM_PROMPT 1:1
+    // ❗️ПРОМТ НЕ ТРОГАЮ — дальше будет SYSTEM_PROMPT
     const SYSTEM_PROMPT = `
 РЕЖИМ ЗАКРЫТОЙ СЕССИИ
 Если ты уже произнёс фразу:
@@ -832,43 +859,43 @@ B) Зайти сейчас и протестировать стратегию ч
 КОНЕЦ ИНСТРУКЦИИ ДЛЯ AI
 `;
 
-    const history = await getHistory(chatId);
+        const history = await getHistory(chatId);
     const trimmed = Array.isArray(history) ? history.slice(-20) : [];
-const messages = [
-  { role: "system", content: SYSTEM_PROMPT },
-  ...trimmed,
-  { role: "user", content: t },
-];
+    const messages = [
+      { role: "system", content: SYSTEM_PROMPT },
+      ...trimmed,
+      { role: "user", content: t },
+    ];
 
-// если OpenAI долго отвечает — через 12 сек напомним, что бот жив
-let slowTimer = null;
+    // если OpenAI долго отвечает — через 12 сек напомним, что бот жив
+    let slowTimer = null;
 
-// НЕ показываем "Я думаю" на командах (/link, /pay3 и т.п.)
-if (!String(t || "").trim().startsWith("/")) {
-  slowTimer = setTimeout(() => {
-    void sendTG(
-      chatId,
-      "Я думаю 😈\nЕсли зависну — просто напиши ещё раз.\n\nЕсли совсем тишина — Юля: @yuliyakuzminova"
-    );
-  }, 12000);
-}
+    // НЕ показываем "Я думаю" на командах (/link, /pay3 и т.п.)
+    if (!String(t || "").trim().startsWith("/")) {
+      slowTimer = setTimeout(() => {
+        void sendTG(
+          chatId,
+          "Я думаю 😈\nЕсли зависну — просто напиши ещё раз.\n\nЕсли совсем тишина — Юля: @yuliyakuzminova"
+        );
+      }, 12000);
+    }
 
-let r;
-try {
-  r = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: "gpt-4.1-mini",
-      input: messages,
-    }),
-  });
-} finally {
-  if (slowTimer) clearTimeout(slowTimer);
-}
+    let r;
+    try {
+      r = await fetch("https://api.openai.com/v1/responses", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4.1-mini",
+          input: messages,
+        }),
+      });
+    } finally {
+      if (slowTimer) clearTimeout(slowTimer);
+    }
 
     if (!r.ok) {
       const err = await r.text();
@@ -877,8 +904,6 @@ try {
       return res.status(200).json({ ok: true });
     }
 
-    await redis.set(`chat:${chatId}:state`, JSON.stringify({ access: true, closed: false }));
-    
     const data = await r.json();
 
     const answer =
@@ -893,23 +918,24 @@ try {
     ]);
 
     // если бот произнёс финал — закрываем доступ (чтобы дальше только код)
-    if (normalizeText(answer) === normalizeText(FINAL_PHRASE) || answer.includes("Я показал механику и варианты.")) {
+    if (
+      normalizeText(answer) === normalizeText(FINAL_PHRASE) ||
+      answer.includes("Я показал механику и варианты.")
+    ) {
       state.closed = true;
       state.access = false;
       await setState(chatId, state);
     }
 
     // ===== ФИНАЛ СЕССИИ =====
-if (answer.includes("Я показал механику") || answer.includes("Если коротко подытожить")) {
-
-  const mentorLine = state?.inviter
-    ? `Если хочешь продолжить — напиши наставнику (он дал ссылку):
-tg://user?id=${}`
-    : `Если не помнишь, кто дал ссылку — ничего страшного.
+    if (answer.includes("Я показал механику") || answer.includes("Если коротко подытожить")) {
+      const mentorLine = state?.inviter
+        ? (await getMentorLine(state)) ||
+          `Если хочешь продолжить — напиши наставнику (он дал ссылку).`
+        : `Если не помнишь, кто дал ссылку — ничего страшного.
 Напиши Юле: https://t.me/yuliyakuzminova`;
 
-  const finalText =
-`Окей 🙂
+      const finalText = `Окей 🙂
 Я показал основу и рассказал, как это работает.
 
 ${mentorLine}
@@ -934,15 +960,15 @@ ${mentorLine}
 Если что-то осталось непонятно — пиши Юле:
 https://t.me/yuliyakuzminova`;
 
-  await sendTG(chatId, finalText);
+      await sendTG(chatId, finalText);
 
-  state.closed = true;
-  state.access = false;
-  await setState(chatId, state);
+      state.closed = true;
+      state.access = false;
+      await setState(chatId, state);
 
-  return res.status(200).json({ ok: true });
-}
-    
+      return res.status(200).json({ ok: true });
+    }
+
     await sendTG(chatId, answer);
     return res.status(200).json({ ok: true });
   } catch (e) {
