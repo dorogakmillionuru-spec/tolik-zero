@@ -1150,14 +1150,6 @@ MANEKI — это не кнопка «быстро заработать».
 
     let r;
     try {
-     const nameNote = state.userName
-  ? `Имя пользователя: ${state.userName}. Обращайся по имени иногда, естественно, не в каждом сообщении.`
-  : "";
-
-messages.unshift({
-  role: "system",
-  content: nameNote
-});
 		r = await fetch("https://api.openai.com/v1/responses", {
         method: "POST",
         headers: {
