@@ -281,6 +281,19 @@ export default async function handler(req, res) {
     // --- STATE ---
     const state = await getState(chatId);
 
+	// --- ИМЯ ПОЛЬЗОВАТЕЛЯ ---
+    if (!state.userName) {
+      const tgName =
+        msg?.from?.first_name ||
+        msg?.from?.username ||
+        null;
+
+      if (tgName) {
+        state.userName = tgName;
+        await setState(chatId, state);
+      }
+    }
+	  
     // --- /start payload = inviter/ref binding ---
     if (t.startsWith("/start")) {
       const parts = t.split(" ").map((x) => x.trim()).filter(Boolean);
