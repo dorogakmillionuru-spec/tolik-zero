@@ -221,7 +221,6 @@ export default async function handler(req, res) {
     const chatId = req.body?.message?.chat?.id;
     const userTextRaw = req.body?.message?.text;
     const msg = req.body?.message;
-	  const userName = msg?.from?.first_name || "";
 
     // 2) Успешная оплата (часто БЕЗ текста) — выдаём коды тут
     if (chatId && msg?.successful_payment) {
