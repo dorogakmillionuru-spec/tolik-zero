@@ -221,6 +221,7 @@ export default async function handler(req, res) {
     const chatId = req.body?.message?.chat?.id;
     const userTextRaw = req.body?.message?.text;
     const msg = req.body?.message;
+	  const userName = msg?.from?.first_name || "";
 
     // 2) Успешная оплата (часто БЕЗ текста) — выдаём коды тут
     if (chatId && msg?.successful_payment) {
@@ -280,6 +281,8 @@ export default async function handler(req, res) {
 
     // --- STATE ---
     const state = await getState(chatId);
+	  const userName = state.userName || "";
+	  // сохранить имя из Telegram (1 раз)
 
 	// --- ИМЯ ПОЛЬЗОВАТЕЛЯ ---
     if (!state.userName) {
@@ -1147,7 +1150,15 @@ MANEKI — это не кнопка «быстро заработать».
 
     let r;
     try {
-      r = await fetch("https://api.openai.com/v1/responses", {
+     const nameNote = state.userName
+  ? `Имя пользователя: ${state.userName}. Обращайся по имени иногда, естественно, не в каждом сообщении.`
+  : "";
+
+messages.unshift({
+  role: "system",
+  content: nameNote
+});
+		r = await fetch("https://api.openai.com/v1/responses", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
