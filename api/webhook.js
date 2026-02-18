@@ -270,6 +270,29 @@ const userTextRaw = msg?.text;
     }
 
     const t = (userTextRaw || "").trim();
+	  function isSoftAck(text) {
+  const s = (text || "").trim().toLowerCase();
+  return (
+    s === "спасибо" ||
+    s === "спс" ||
+    s === "спасибо!" ||
+    s === "ок" ||
+    s === "окей" ||
+    s === "ok" ||
+    s === "поняла" ||
+    s === "понял" ||
+    s === "ясно" ||
+    s === "понятно" ||
+    s === "принято" ||
+    s === "хорошо" ||
+    s === "ага"
+  );
+}
+
+if (state?.access && !state?.closed && isSoftAck(t)) {
+  await sendTG(chatId, "Окей 🙂 Продолжаем или закрываем на сегодня?");
+  return res.status(200).json({ ok: true });
+}
 
     // HELP: поддержка
     if (t === "/help" || t === "/support") {
