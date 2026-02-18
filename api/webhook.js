@@ -283,27 +283,7 @@ const userTextRaw = msg?.text;
 
     // --- STATE ---
     const state = await getState(chatId);
-	   function isSoftAck(text) {
-  const s = (text || "").trim().toLowerCase();
-  return (
-    s === "спасибо" ||
-    s === "спс" ||
-    s === "спасибо!" ||
-    s === "ок" ||
-    s === "окей" ||
-    s === "ok" ||
-    s === "поняла" ||
-    s === "понял" ||
-    s === "ясно" ||
-    s === "понятно" ||
-    s === "принято" ||
-  );
-}
-
-if (state?.access && !state?.closed && isSoftAck(t)) {
-  await sendTG(chatId, "Окей 🙂 Продолжаем или закрываем на сегодня?");
-  return res.status(200).json({ ok: true });
-}
+	  
 	  // сохранить имя из Telegram (1 раз)
 
 	// --- ИМЯ ПОЛЬЗОВАТЕЛЯ ---
