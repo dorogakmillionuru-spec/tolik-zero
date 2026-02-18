@@ -282,7 +282,6 @@ const userTextRaw = msg?.text;
 
     // --- STATE ---
     const state = await getState(chatId);
-	  const userName = state.userName || "";
 	  // сохранить имя из Telegram (1 раз)
 
 	// --- ИМЯ ПОЛЬЗОВАТЕЛЯ ---
