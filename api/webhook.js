@@ -270,7 +270,20 @@ const userTextRaw = msg?.text;
     }
 
     const t = (userTextRaw || "").trim();
-	  function isSoftAck(text) {
+	 
+
+    // HELP: поддержка
+    if (t === "/help" || t === "/support") {
+      await sendTG(
+        chatId,
+        "Если что-то не работает или потерялся — напиши Юле: @yuliyakuzminova"
+      );
+      return res.status(200).json({ ok: true });
+    }
+
+    // --- STATE ---
+    const state = await getState(chatId);
+	   function isSoftAck(text) {
   const s = (text || "").trim().toLowerCase();
   return (
     s === "спасибо" ||
@@ -293,18 +306,6 @@ if (state?.access && !state?.closed && isSoftAck(t)) {
   await sendTG(chatId, "Окей 🙂 Продолжаем или закрываем на сегодня?");
   return res.status(200).json({ ok: true });
 }
-
-    // HELP: поддержка
-    if (t === "/help" || t === "/support") {
-      await sendTG(
-        chatId,
-        "Если что-то не работает или потерялся — напиши Юле: @yuliyakuzminova"
-      );
-      return res.status(200).json({ ok: true });
-    }
-
-    // --- STATE ---
-    const state = await getState(chatId);
 	  // сохранить имя из Telegram (1 раз)
 
 	// --- ИМЯ ПОЛЬЗОВАТЕЛЯ ---
