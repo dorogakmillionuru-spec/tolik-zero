@@ -302,16 +302,31 @@ const userTextRaw = msg?.text;
     // --- /start payload = inviter/ref binding ---
     if (t.startsWith("/start")) {
       const parts = t.split(" ").map((x) => x.trim()).filter(Boolean);
-      const payload = parts.length > 1 ? parts.slice(1).join(" ") : null;
+      const payloadRaw = parts.length > 1 ? parts.slice(1).join(" ") : null;
 
-      if (payload && !state.inviter) {
-        state.inviter = payload;
+// payload может быть "chatId_name"
+let payload = payloadRaw;
+let payloadName = null;
 
-        const mentorChat = await getChatInfo(payload);
-        state.inviterName = formatMentorName(mentorChat) || "наставник";
+if (payloadRaw && payloadRaw.includes("_")) {
+  const idx = payloadRaw.indexOf("_");
+  payload = payloadRaw.slice(0, idx).trim();
+  payloadName = payloadRaw.slice(idx + 1).trim();
+  if (payloadName) payloadName = decodeURIComponent(payloadName);
+}
 
-        await setState(chatId, state);
-      }
+  if (payload && !state.inviter) {
+  state.inviter = payload;
+
+  if (payloadName) {
+    state.inviterName = payloadName;
+  } else {
+    const mentorChat = await getChatInfo(payload);
+    state.inviterName = formatMentorName(mentorChat) || "наставник";
+  }
+
+  await setState(chatId, state);
+}
 
          const startText = `Привет 🙂 Я Толик.
 
