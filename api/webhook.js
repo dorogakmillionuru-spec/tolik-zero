@@ -1269,7 +1269,7 @@ tg://user?id=${state.inviter}`;
 https://t.me/yuliyakuzminova`;
 }
 
-    const channelLine = `Официальный канал бота: https://t.me/PASTE_CHANNEL_HERE`;
+    const channelLine = `Официальный канал бота: https://t.me/+rz7c_SxvZWIzNDVi`;
 
 const finalText = `Окей 🙂  
 Коротко подвожу итог — чтобы не было “а что дальше?” 😄
