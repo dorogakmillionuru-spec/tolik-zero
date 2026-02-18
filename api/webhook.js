@@ -117,6 +117,31 @@ async function sendTG(chatId, text, opts = {}) {
   );
 }
 
+async function getTgChat(chatId) {
+  const r = await fetch(`https://api.telegram.org/bot${process.env.TG_TOKEN}/getChat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId }),
+  });
+  const j = await r.json();
+  return j?.ok ? j.result : null;
+}
+
+function formatMentorName(chat) {
+  if (!chat) return null;
+
+  const first = chat.first_name || "";
+  const last = chat.last_name || "";
+  const full = `${first} ${last}`.trim();
+  if (full) return full;
+
+  if (chat.title) return chat.title;
+
+  if (chat.username) return `@${chat.username}`;
+
+  return null;
+}
+
 async function getChatInfo(chatId) {
   const r = await fetch(
     `https://api.telegram.org/bot${process.env.TG_TOKEN}/getChat?chat_id=${chatId}`
