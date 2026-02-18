@@ -1186,9 +1186,10 @@ MANEKI — это не кнопка «быстро заработать».
 
         const history = await getHistory(chatId);
     const trimmed = Array.isArray(history) ? history.slice(-20) : [];
+	  const userName = (state?.userName || "").trim();
     const messages = [
-      { role: "system", content: SYSTEM_PROMPT },
-      ...trimmed,
+{ role: "system", content: SYSTEM_PROMPT + (userName ? `\nИмя пользователя: ${userName}. Периодически обращайся к нему по имени, естественно и не в каждом сообщении.` : "") },
+		...trimmed,
       { role: "user", content: t },
     ];
 
