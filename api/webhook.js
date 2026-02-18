@@ -455,9 +455,11 @@ const userTextRaw = msg?.text;
         state.access = true;
         state.closed = false;
         await setState(chatId, state);
-
-        await sendTG(chatId, "Доступ открыт ✅ Напиши свой вопрос по роботу.");
-        return res.status(200).json({ ok: true });
+		  
+await sendTG(
+  chatId,
+  `Привет, ${state.userName || "друг"}! Доступ открыт ✅ Начинаем консультацию.`
+);
       }
 
       await sendTG(chatId, "Введите код доступа.");
