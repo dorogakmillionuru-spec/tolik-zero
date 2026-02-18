@@ -333,7 +333,7 @@ if (payloadRaw && payloadRaw.includes("_")) {
   if (payloadName) {
     state.inviterName = payloadName;
   } else {
-    const mentorChat = await getChatInfo(payload);
+    const mentorChat = await getChatInfo(state.inviter);
     state.inviterName = formatMentorName(mentorChat) || "наставник";
   }
 
