@@ -460,6 +460,7 @@ await sendTG(
   chatId,
   `Привет, ${state.userName || "друг"}! Доступ открыт ✅ Начинаем консультацию.`
 );
+return res.status(200).json({ ok: true });
       }
 
       await sendTG(chatId, "Введите код доступа.");
