@@ -34,33 +34,36 @@ async function getState(chatId) {
   const raw = await redis.get(`chat:${chatId}:state`);
   if (!raw)
     return {
-      access: false,
-      closed: false,
-      inviter: null,
-      inviterName: null,
-      trialUsed: false,
-    };
+  access: false,
+  closed: false,
+  inviter: null,
+  inviterName: null,
+  userName: null,
+  trialUsed: false,
+};
 
   // Upstash иногда может вернуть уже объект
   if (typeof raw === "object") {
-    return {
-      access: !!raw.access,
-      closed: !!raw.closed,
-      inviter: raw.inviter ?? null,
-      inviterName: raw.inviterName ?? null,
-      trialUsed: !!raw.trialUsed,
-    };
+   return {
+  access: !!raw.access,
+  closed: !!raw.closed,
+  inviter: raw.inviter ?? null,
+  inviterName: raw.inviterName ?? null,
+  userName: raw.userName ?? null,
+  trialUsed: !!raw.trialUsed,
+};
   }
 
   try {
     const parsed = JSON.parse(raw);
     return {
-      access: !!parsed.access,
-      closed: !!parsed.closed,
-      inviter: parsed.inviter ?? null,
-      inviterName: parsed.inviterName ?? null,
-      trialUsed: !!parsed.trialUsed,
-    };
+  access: !!parsed.access,
+  closed: !!parsed.closed,
+  inviter: parsed.inviter ?? null,
+  inviterName: parsed.inviterName ?? null,
+  userName: parsed.userName ?? null,
+  trialUsed: !!parsed.trialUsed,
+};
   } catch {
     return {
       access: false,
