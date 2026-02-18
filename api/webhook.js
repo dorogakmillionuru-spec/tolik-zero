@@ -217,10 +217,9 @@ export default async function handler(req, res) {
       await answerPreCheckoutQuery(req.body.pre_checkout_query.id);
       return res.status(200).json({ ok: true });
     }
-
-    const chatId = req.body?.message?.chat?.id;
-    const userTextRaw = req.body?.message?.text;
-    const msg = req.body?.message;
+const msg = req.body?.message;
+const chatId = msg?.chat?.id;
+const userTextRaw = msg?.text;
 
     // 2) Успешная оплата (часто БЕЗ текста) — выдаём коды тут
     if (chatId && msg?.successful_payment) {
