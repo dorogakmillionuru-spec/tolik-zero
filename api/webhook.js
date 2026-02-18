@@ -151,19 +151,6 @@ async function getChatInfo(chatId) {
   return j.result;
 }
 
-function formatMentorName(chat) {
-  if (!chat) return null;
-
-  // приоритет: @username → first_name last_name → "наставник"
-  if (chat.username) return `@${chat.username}`.trim();
-
-  const first = (chat.first_name || "").trim();
-  const last = (chat.last_name || "").trim();
-  const full = `${first} ${last}`.trim();
-
-  return full || "наставник";
-}
-
 async function getMentorLine(state) {
   const inviterId = state?.inviter;
   if (!inviterId) return null;
