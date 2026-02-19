@@ -323,6 +323,7 @@ if (t === "/mentor") {
       if (tgName) {
         state.userName = tgName;
         await setState(chatId, state);
+		  await sendTG(chatId, "DEBUG saved mentorId=" + state.mentorId + " mentorName=" + state.mentorName);
       }
     }
 	  
