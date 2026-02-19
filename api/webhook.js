@@ -350,13 +350,9 @@ if (payload) {
 
   if (payloadName) {
     state.mentorName = payloadName;
-  } else {
-    const mentorChat = await getChatInfo(payload);
-    state.mentorName =
-      [mentorChat?.first_name, mentorChat?.last_name].filter(Boolean).join(" ") ||
-      (mentorChat?.username ? "@" + mentorChat.username : null) ||
-      "наставник";
-  }
+ } else {
+  state.mentorName = `tg://user?id=${payload}`;
+}
 
   // 2) inviter ставим только один раз (чтобы не перетирало)
   if (!state.inviter) {
