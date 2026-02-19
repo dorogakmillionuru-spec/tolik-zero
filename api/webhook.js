@@ -346,6 +346,8 @@ if (payloadRaw && payloadRaw.includes("_")) {
 		// сохраняем наставника ВСЕГДА (уже после распаковки payloadName)
 if (payload) {
   state.mentorId = payload;
+  await setState(chatId, state);
+}
 
   if (payloadName) {
     state.mentorName = payloadName;
