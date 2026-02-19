@@ -345,8 +345,9 @@ if (payloadRaw && payloadRaw.includes("_")) {
 
 // сохраняем наставника ВСЕГДА (уже после распаковки payloadName)
 
-  if (payload && !state.inviter) {
+if (payload && !state.inviter) {
   state.inviter = payload;
+  state.mentorId = payload;
 	  
   if (payloadName) {
     state.inviterName = payloadName;
