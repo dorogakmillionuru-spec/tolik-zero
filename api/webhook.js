@@ -1323,7 +1323,7 @@ https://t.me/yuliyakuzminova`;
 
     await sendTG(chatId, answer);
     return res.status(200).json({ ok: true });
-  } catch (e) {
+  catch (e) {
     console.log("WEBHOOK FATAL:", e);
     return res.status(200).json({ ok: true });
   }
