@@ -281,8 +281,7 @@ const userTextRaw = msg?.text;
       return res.status(200).json({ ok: true });
     }
 
-    const t = (userTextRaw || "").trim();
-	 
+const t = (userTextRaw || "").trim().split("@")[0];	 
 
     // HELP: поддержка
     if (t === "/help" || t === "/support") {
