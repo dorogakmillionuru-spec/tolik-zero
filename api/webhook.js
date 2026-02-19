@@ -32,15 +32,52 @@ function genCode(len = 10) {
 
 async function getState(chatId) {
   const raw = await redis.get(`chat:${chatId}:state`);
-  if (!raw)
+
+  const base = {
+    access: false,
+    closed: false,
+    inviter: null,
+    inviterName: null,
+    mentorId: null,
+    mentorName: null,
+    userName: null,
+    trialUsed: false,
+  };
+
+  if (!raw) return base;
+
+  // Upstash иногда может вернуть уже объект
+  if (typeof raw === "object") {
     return {
-  access: false,
-  closed: false,
-  inviter: null,
-  inviterName: null,
-  userName: null,
-  trialUsed: false,
-};
+      ...base,
+      access: !!raw.access,
+      closed: !!raw.closed,
+      inviter: raw.inviter ?? null,
+      inviterName: raw.inviterName ?? null,
+      mentorId: raw.mentorId ?? null,
+      mentorName: raw.mentorName ?? null,
+      userName: raw.userName ?? null,
+      trialUsed: !!raw.trialUsed,
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    return {
+      ...base,
+      access: !!parsed.access,
+      closed: !!parsed.closed,
+      inviter: parsed.inviter ?? null,
+      inviterName: parsed.inviterName ?? null,
+      mentorId: parsed.mentorId ?? null,
+      mentorName: parsed.mentorName ?? null,
+      userName: parsed.userName ?? null,
+      trialUsed: !!parsed.trialUsed,
+    };
+  } catch {
+    return base;
+  }
+}
 
   // Upstash иногда может вернуть уже объект
   if (typeof raw === "object") {
