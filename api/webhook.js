@@ -333,19 +333,26 @@ if (t === "/mentor") {
 // payload может быть "chatId_name"
 let payload = payloadRaw;
 let payloadName = null;
-
-		// сохраняем наставника всегда (после распаковки payloadName)
-if (payload) {
-  state.mentorId = payload;
-  if (payloadName) state.mentorName = payloadName;
-  await setState(chatId, state);
-}
 		
 if (payloadRaw && payloadRaw.includes("_")) {
   const idx = payloadRaw.indexOf("_");
   payload = payloadRaw.slice(0, idx).trim();
   payloadName = payloadRaw.slice(idx + 1).trim();
   if (payloadName) payloadName = decodeURIComponent(payloadName);
+}
+
+		// сохраняем наставника ВСЕГДА (уже после распаковки payloadName)
+if (payload) {
+  state.mentorId = payload;
+
+  if (payloadName) {
+    state.mentorName = payloadName;
+  } else {
+    const mentorChat = await getChatInfo(payload);
+    state.mentorName = formatMentorName(mentorChat) || "наставник";
+  }
+
+  await setState(chatId, state);
 }
 		
   if (payload && !state.inviter) {
