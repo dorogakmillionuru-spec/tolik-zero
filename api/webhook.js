@@ -303,8 +303,8 @@ if (t === "/partner") {
 }
 
 if (t === "/mentor") {
-  const state = await getState(chatId);
-  const mentor = state.mentorName  state.mentorUser  state.mentorId || "не задан";
+  const st = await getState(chatId);
+  const mentor = st.mentorName || st.mentorUser || st.mentorId || "не задан";
   await sendTG(chatId, "Твой наставник: " + mentor);
   return res.status(200).json({ ok: true });
 }
