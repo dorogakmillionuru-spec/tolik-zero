@@ -336,6 +336,7 @@ let payloadName = null;
 // сохраняем наставника всегда
 if (payload) {
   state.mentorId = payload;
+  state.mentorName = payloadName || state.mentorName || "наставник";
 }
 
 if (payloadRaw && payloadRaw.includes("_")) {
