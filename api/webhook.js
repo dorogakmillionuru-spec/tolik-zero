@@ -265,7 +265,62 @@ export default async function handler(req, res) {
     }
 
     const t = (userTextRaw || "").trim().split("@")[0];
+// ===== АДМИН-КОМАНДЫ =====
+const isAdmin = String(chatId) === String(process.env.ADMIN_CHAT_ID);
 
+if (t === "/whoami") {
+  await sendTG(
+    chatId,
+    `chatId=${chatId}\nADMIN_CHAT_ID=${process.env.ADMIN_CHAT_ID || "NOT_SET"}\nisAdmin=${isAdmin}`
+  );
+  return res.status(200).json({ ok: true });
+}
+
+// /fakepay3 — тестовая выдача кодов (как будто оплата прошла)
+if (isAdmin && t === "/fakepay3") {
+  const base = 3;
+
+  const bonusEnabled = (process.env.BONUS_ENABLED ?? "1") !== "0";
+  const bonusMap = { 3: 1, 10: 3, 30: 10 };
+  const bonus = bonusEnabled ? (bonusMap[base] || 0) : 0;
+
+  const total = base + bonus;
+  const codes = await addManyOneTimeCodes(total);
+
+  await sendTG(
+    chatId,
+    "ТЕСТОВАЯ ОПЛАТА ✅ (fake)\n\n" +
+      `Пакет: ${base}` +
+      (bonus ? ` + бонус ${bonus} = ${total}` : "") +
+      "\n\nКоды доступа:\n" +
+      codes.map((c) => "• " + c).join("\n")
+  );
+
+  return res.status(200).json({ ok: true });
+}
+
+// /mk3 /mk10 /mk30 — ручной выпуск кодов админом
+if (isAdmin && (t === "/mk3" || t === "/mk10" || t === "/mk30")) {
+  const base = t === "/mk10" ? 10 : t === "/mk30" ? 30 : 3;
+
+  const bonusEnabled = (process.env.BONUS_ENABLED ?? "1") !== "0";
+  const bonusMap = { 3: 1, 10: 3, 30: 10 };
+  const bonus = bonusEnabled ? (bonusMap[base] || 0) : 0;
+
+  const total = base + bonus;
+  const codes = await addManyOneTimeCodes(total);
+
+  await sendTG(
+    chatId,
+    "Коды для админа ✅\n\n" +
+      `Пакет: ${base}` +
+      (bonus ? ` + бонус ${bonus} = ${total}` : "") +
+      "\n\n" +
+      codes.map((c) => "• " + c).join("\n")
+  );
+
+  return res.status(200).json({ ok: true });
+}
     // --- STATE ---
     const state = await getState(chatId);
 
