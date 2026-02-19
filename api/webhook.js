@@ -344,19 +344,7 @@ if (payloadRaw && payloadRaw.includes("_")) {
 }
 
 // сохраняем наставника ВСЕГДА (уже после распаковки payloadName)
-if (payload) {
-  state.mentorId = payload;
 
-  if (payloadName) {
-    state.mentorName = payloadName;
-  } else {
-    const mentorChat = await getChatInfo(payload);
-    state.mentorName = formatMentorName(mentorChat) || "наставник";
-  }
-
-  await setState(chatId, state);
-}
-		
   if (payload && !state.inviter) {
   state.inviter = payload;
 	  
