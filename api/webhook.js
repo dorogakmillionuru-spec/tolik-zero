@@ -359,6 +359,9 @@ if (payload) {
   if (payload && !state.inviter) {
   state.inviter = payload;
 
+	  state.mentorId = payload;
+state.mentorName = payloadName || "наставник";
+	  
   if (payloadName) {
     state.inviterName = payloadName;
   } else {
