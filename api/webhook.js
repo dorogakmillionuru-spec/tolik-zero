@@ -303,17 +303,33 @@ if (t === "/partner") {
 }
 	  
 if (t === "/mentor") {
-  const st = await getState(chatId);
+  const state = await getState(chatId);
 
-  const mentor =
-    st.mentorName ||
-    st.inviterName ||
-    st.mentorUser ||
-    st.inviter ||
-    st.mentorId ||
-    "не задан";
+  // 1) если уже сохранили имя — показываем его
+  if (state.mentorName) {
+    await sendTG(chatId, "Твой наставник: " + state.mentorName);
+    return res.status(200).json({ ok: true });
+  }
 
-  await sendTG(chatId, "Твой наставник: " + mentor);
+  // 2) если есть mentorId — пробуем вытащить имя из Telegram
+  if (state.mentorId) {
+    const mentorChat = await getChatInfo(state.mentorId);
+
+    const mentorName =
+      [mentorChat?.first_name, mentorChat?.last_name].filter(Boolean).join(" ") ||
+      (mentorChat?.username ? "@" + mentorChat.username : "") ||
+      "наставник";
+
+    // сохраним, чтобы дальше не дергать TG
+    state.mentorName = mentorName;
+    await setState(chatId, state);
+
+    await sendTG(chatId, "Твой наставник: " + mentorName);
+    return res.status(200).json({ ok: true });
+  }
+
+  // 3) вообще ничего нет
+  await sendTG(chatId, "Твой наставник: не задан");
   return res.status(200).json({ ok: true });
 }
 	  
