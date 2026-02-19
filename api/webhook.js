@@ -342,7 +342,9 @@ if (payloadRaw && payloadRaw.includes("_")) {
   if (payloadName) payloadName = decodeURIComponent(payloadName);
 }
 
-		// сохраняем наставника ВСЕГДА (уже после распаковки payloadName)
+// сохраняем наставника ВСЕГДА (уже после распаковки payloadName)
+if (payload) {
+  state.mentorId = payload;
 
   if (payloadName) {
     state.mentorName = payloadName;
@@ -356,9 +358,6 @@ if (payloadRaw && payloadRaw.includes("_")) {
 		
   if (payload && !state.inviter) {
   state.inviter = payload;
-
-	  state.mentorId = payload;
-state.mentorName = payloadName || "наставник";
 	  
   if (payloadName) {
     state.inviterName = payloadName;
