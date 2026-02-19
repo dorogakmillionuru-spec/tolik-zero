@@ -350,15 +350,22 @@ if (isAdmin && (t === "/mk3" || t === "/mk10" || t === "/mk30")) {
     }
 
     if (t === "/mentor") {
-      // если имени нет, но есть mentorId — пробуем подтянуть и сохранить
-      if (!state.mentorName && state.mentorId) {
-        const mentorChat = await getChatInfo(state.mentorId);
-        state.mentorName = formatMentorName(mentorChat) || "наставник";
-        await setState(chatId, state);
-      }
-      await sendTG(chatId, "Твой наставник: " + (state.mentorName || "не задан"));
-      return res.status(200).json({ ok: true });
-    }
+  const state = await getState(chatId);
+
+  if (!state.mentorId) {
+    await sendTG(chatId, "Твой наставник: не задан");
+    return res.status(200).json({ ok: true });
+  }
+
+  const name = state.mentorName || "наставник";
+
+  await sendTG(
+    chatId,
+    `Твой наставник: ${name}\nНаписать: tg://user?id=${state.mentorId}`
+  );
+
+  return res.status(200).json({ ok: true });
+}
 
     // --- /start payload = inviter/ref binding ---
     if (t.startsWith("/start")) {
