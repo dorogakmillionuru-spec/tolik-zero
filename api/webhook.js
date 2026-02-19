@@ -79,39 +79,6 @@ async function getState(chatId) {
   }
 }
 
-  // Upstash иногда может вернуть уже объект
-  if (typeof raw === "object") {
-   return {
-  access: !!raw.access,
-  closed: !!raw.closed,
-  inviter: raw.inviter ?? null,
-  inviterName: raw.inviterName ?? null,
-  userName: raw.userName ?? null,
-  trialUsed: !!raw.trialUsed,
-};
-  }
-
-  try {
-    const parsed = JSON.parse(raw);
-    return {
-  access: !!parsed.access,
-  closed: !!parsed.closed,
-  inviter: parsed.inviter ?? null,
-  inviterName: parsed.inviterName ?? null,
-  userName: parsed.userName ?? null,
-  trialUsed: !!parsed.trialUsed,
-};
-  } catch {
-    return {
-      access: false,
-      closed: false,
-      inviter: null,
-      inviterName: null,
-      trialUsed: false,
-    };
-  }
-}
-
 async function setState(chatId, state) {
   await redis.set(`chat:${chatId}:state`, JSON.stringify(state));
 }
@@ -139,29 +106,16 @@ async function addManyOneTimeCodes(n) {
 }
 
 async function sendTG(chatId, text, opts = {}) {
-  await fetch(
-    `https://api.telegram.org/bot${process.env.TG_TOKEN}/sendMessage`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text,
-        parse_mode: opts.parse_mode ?? undefined,
-        disable_web_page_preview: opts.disable_web_page_preview ?? true,
-      }),
-    }
-  );
-}
-
-async function getTgChat(chatId) {
-  const r = await fetch(`https://api.telegram.org/bot${process.env.TG_TOKEN}/getChat`, {
+  await fetch(`https://api.telegram.org/bot${process.env.TG_TOKEN}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId }),
+    body: JSON.stringify({
+      chat_id: chatId,
+      text,
+      parse_mode: opts.parse_mode ?? undefined,
+      disable_web_page_preview: opts.disable_web_page_preview ?? true,
+    }),
   });
-  const j = await r.json();
-  return j?.ok ? j.result : null;
 }
 
 function formatMentorName(chat) {
@@ -188,15 +142,6 @@ async function getChatInfo(chatId) {
   return j.result;
 }
 
-async function getMentorLine(state) {
-  const inviterId = state?.inviter;
-  if (!inviterId) return null;
-
-  const name = state?.inviterName || "наставник";
-  // кликабельная ссылка на ЛС наставника
-  return `Если хочешь продолжить — напиши наставнику (${name}):\n tg://user?id=${inviterId}`;
-}
-
 async function answerPreCheckoutQuery(id) {
   await fetch(
     `https://api.telegram.org/bot${process.env.TG_TOKEN}/answerPreCheckoutQuery`,
@@ -219,7 +164,7 @@ async function sendInvoice(chatId, pack) {
   const packs = {
     3: { title: "Консультация — 3 сессии", amount: 99000 },
     10: { title: "Консультация — 10 сессий", amount: 299000 },
-    30: { title: "Консультация — 30 сессий", amount: 699000 },
+    30: { title: "Консультация — 30 сессии", amount: 699000 },
   };
 
   const p = packs[pack];
@@ -269,9 +214,10 @@ export default async function handler(req, res) {
       await answerPreCheckoutQuery(req.body.pre_checkout_query.id);
       return res.status(200).json({ ok: true });
     }
-const msg = req.body?.message;
-const chatId = msg?.chat?.id;
-const userTextRaw = msg?.text;
+
+    const msg = req.body?.message;
+    const chatId = msg?.chat?.id;
+    const userTextRaw = msg?.text;
 
     // 2) Успешная оплата (часто БЕЗ текста) — выдаём коды тут
     if (chatId && msg?.successful_payment) {
@@ -318,89 +264,84 @@ const userTextRaw = msg?.text;
       return res.status(200).json({ ok: true });
     }
 
-const t = (userTextRaw || "").trim().split("@")[0];	 
+    const t = (userTextRaw || "").trim().split("@")[0];
 
-    // HELP: поддержка
-    if (t === "/help" || t === "/support") {
-      await sendTG(
-        chatId,
-        "Если что-то не работает или потерялся — напиши Юле: @yuliyakuzminova"
-      );
-      return res.status(200).json({ ok: true });
-    }
-
-	  if (t === "/channel") {
-  await sendTG(chatId, "Официальный канал: https://t.me/+rz7c_SxvZWIzNDVi");
-  return res.status(200).json({ ok: true });
-}
-
-if (t === "/partner") {
-  await sendTG(chatId, "Твоя партнёрская ссылка: https://t.me/Tolik_Testy_Bot?start=" + chatId);
-  return res.status(200).json({ ok: true });
-}
-	  
-if (t === "/mentor") {
-  const state = await getState(chatId);
-  await sendTG(chatId, "Твой наставник: " + (state.mentorName || "не задан"));
-  return res.status(200).json({ ok: true });
-}
-	  
     // --- STATE ---
     const state = await getState(chatId);
-	  
-	  // сохранить имя из Telegram (1 раз)
 
-	// --- ИМЯ ПОЛЬЗОВАТЕЛЯ ---
+    // --- ИМЯ ПОЛЬЗОВАТЕЛЯ (1 раз) ---
     if (!state.userName) {
-      const tgName =
-        msg?.from?.first_name ||
-        msg?.from?.username ||
-        null;
-
+      const tgName = msg?.from?.first_name || msg?.from?.username || null;
       if (tgName) {
         state.userName = tgName;
         await setState(chatId, state);
-		  await sendTG(chatId, "DEBUG saved mentorId=" + state.mentorId + " mentorName=" + state.mentorName);
       }
     }
-	  
+
+    // HELP: поддержка
+    if (t === "/help" || t === "/support") {
+      await sendTG(chatId, "Если что-то не работает или потерялся — напиши Юле: @yuliyakuzminova");
+      return res.status(200).json({ ok: true });
+    }
+
+    if (t === "/channel") {
+      await sendTG(chatId, "Официальный канал: https://t.me/+rz7c_SxvZWIzNDVi");
+      return res.status(200).json({ ok: true });
+    }
+
+    if (t === "/partner") {
+      await sendTG(chatId, "Твоя партнёрская ссылка: https://t.me/Tolik_Testy_Bot?start=" + chatId);
+      return res.status(200).json({ ok: true });
+    }
+
+    if (t === "/mentor") {
+      // если имени нет, но есть mentorId — пробуем подтянуть и сохранить
+      if (!state.mentorName && state.mentorId) {
+        const mentorChat = await getChatInfo(state.mentorId);
+        state.mentorName = formatMentorName(mentorChat) || "наставник";
+        await setState(chatId, state);
+      }
+      await sendTG(chatId, "Твой наставник: " + (state.mentorName || "не задан"));
+      return res.status(200).json({ ok: true });
+    }
+
     // --- /start payload = inviter/ref binding ---
     if (t.startsWith("/start")) {
- const rawStart = (userTextRaw || "").trim();
-const payloadRaw = rawStart.split(/\s+/).slice(1).join(" ") || null;
+      const rawStart = (userTextRaw || "").trim();
+      const payloadRaw = rawStart.split(/\s+/).slice(1).join(" ") || null;
 
-// payload может быть "chatId_name"
-let payload = payloadRaw;
-let payloadName = null;
-		
-if (payloadRaw && payloadRaw.includes("_")) {
-  const idx = payloadRaw.indexOf("_");
-  payload = payloadRaw.slice(0, idx).trim();
-  payloadName = payloadRaw.slice(idx + 1).trim();
-  if (payloadName) payloadName = decodeURIComponent(payloadName);
-}
+      // payload может быть "chatId_name"
+      let payload = payloadRaw;
+      let payloadName = null;
 
-// сохраняем наставника ВСЕГДА (уже после распаковки payloadName)
-if (payload) {
-  // 1) наставник всегда
-  state.mentorId = payload;
+      if (payloadRaw && payloadRaw.includes("_")) {
+        const idx = payloadRaw.indexOf("_");
+        payload = payloadRaw.slice(0, idx).trim();
+        payloadName = payloadRaw.slice(idx + 1).trim();
+        if (payloadName) payloadName = decodeURIComponent(payloadName);
+      }
 
-  if (payloadName) {
-    state.mentorName = payloadName;
- } else {
-  state.mentorName = `tg://user?id=${payload}`;
-}
+      // сохраняем наставника ВСЕГДА
+      if (payload) {
+        state.mentorId = payload;
 
-  // 2) inviter ставим только один раз (чтобы не перетирало)
-  if (!state.inviter) {
-    state.inviter = payload;
-    state.inviterName = state.mentorName;
-  }
+        if (payloadName) {
+          state.mentorName = payloadName;
+        } else {
+          const mentorChat = await getChatInfo(payload);
+          state.mentorName = formatMentorName(mentorChat) || "наставник";
+        }
 
-  await setState(chatId, state);
-}
+        // inviter ставим только один раз
+        if (!state.inviter) {
+          state.inviter = payload;
+          state.inviterName = state.mentorName;
+        }
 
-         const startText = `Привет 🙂 Я Толик.
+        await setState(chatId, state);
+      }
+
+      const startText = `Привет 🙂 Я Толик.
 
 Чаще всего ко мне приходят после роботов, сигналов или просто с мыслью «хочу разобраться».
 Можно спокойно посмотреть, первая сессия бесплатная.
@@ -411,13 +352,6 @@ if (payload) {
 3) есть опыт`;
 
       await sendTG(chatId, startText);
-      
-      // если нет доступа и бесплатка уже использована — просим код
-if ((!state.access || state.closed) && state.trialUsed && !t.startsWith("/") && t !== "/channel" && t !== "/partner" && t !== "/mentor" && t !== "/support") {
-	await sendTG(chatId, "Введите код доступа.");
-    return res.status(200).json({ ok: true });
-}
-
       return res.status(200).json({ ok: true });
     }
 
@@ -435,7 +369,6 @@ if ((!state.access || state.closed) && state.trialUsed && !t.startsWith("/") && 
         return res.status(200).json({ ok: true });
       }
 
-      // покажем наставника (если привязан)
       if (state.inviter) {
         await sendTG(chatId, `Твой наставник: ${state.inviterName || "наставник"}`);
       }
@@ -447,89 +380,14 @@ if ((!state.access || state.closed) && state.trialUsed && !t.startsWith("/") && 
       return res.status(200).json({ ok: true });
     }
 
-    // DEBUG: показать, к кому привязан (inviter)
-    if (t === "/inviter") {
-      const inv = state.inviter;
-      if (inv) {
-        await sendTG(chatId, `Ты привязан(а) к наставнику (chatId): ${inv}`);
-      } else {
-        await sendTG(
-          chatId,
-          "Наставник не привязан. Зайди в бота по реф-ссылке (с ?start=...)."
-        );
-      }
-      return res.status(200).json({ ok: true });
-    }
-
-    // DEBUG: фейк-оплата (только для админа)
-    if (String(chatId) === String(process.env.ADMIN_CHAT_ID) && t === "/fakepay3") {
-      const base = 3;
-
-      const bonusEnabled = (process.env.BONUS_ENABLED ?? "1") !== "0";
-      const bonusMap = { 3: 1, 10: 3, 30: 10 };
-      const bonus = bonusEnabled ? (bonusMap[base] || 0) : 0;
-
-      const total = base + bonus;
-      const codes = await addManyOneTimeCodes(total);
-
-      const lines = [
-        "ТЕСТОВАЯ ОПЛАТА ✅ (fake)",
-        "",
-        `Пакет: ${base} код(ов)` + (bonus ? ` + бонус ${bonus} = ${total}` : ""),
-        "",
-        "Коды доступа:",
-        ...codes.map((c) => `• ${c}`),
-      ];
-
-      await sendTG(chatId, lines.join("\n"));
-      return res.status(200).json({ ok: true });
-    }
-
-    // команды оплаты
-    if (t === "/pay3") {
-      await sendInvoice(chatId, 3);
-      return res.status(200).json({ ok: true });
-    }
-    if (t === "/pay10") {
-      await sendInvoice(chatId, 10);
-      return res.status(200).json({ ok: true });
-    }
-    if (t === "/pay30") {
-      await sendInvoice(chatId, 30);
-      return res.status(200).json({ ok: true });
-    }
-
-    // ===== АДМИН: коды себе (ручной выпуск) =====
-    if (String(chatId) === String(process.env.ADMIN_CHAT_ID)) {
-      if (t === "/mk3" || t === "/mk10" || t === "/mk30") {
-        const base = t === "/mk10" ? 10 : t === "/mk30" ? 30 : 3;
-        const bonusEnabled = (process.env.BONUS_ENABLED ?? "1") !== "0";
-        const bonusMap = { 3: 1, 10: 3, 30: 10 };
-        const bonus = bonusEnabled ? (bonusMap[base] || 0) : 0;
-
-        const total = base + bonus;
-        const codes = await addManyOneTimeCodes(total);
-
-        await sendTG(
-          chatId,
-          "Коды для админа ✅\n\n" +
-            `Пакет: ${base}` +
-            (bonus ? ` + бонус ${bonus} = ${total}` : "") +
-            "\n\n" +
-            codes.map((c) => "• " + c).join("\n")
-        );
-        return res.status(200).json({ ok: true });
-      }
-    }
-
     // ===== ACCESS GATE =====
     // 1) Бесплатная сессия (один раз на chatId), если ещё не использована
     if ((!state.access || state.closed) && !state.trialUsed) {
       state.access = true;
-       false;
+      state.closed = false;
       state.trialUsed = true;
       await setState(chatId, state);
-      // дальше идём в LLM-ветку без лишних сообщений
+      // дальше идём в LLM-ветку
     }
 
     // 2) Если всё ещё нет доступа — принимаем только код
@@ -544,12 +402,12 @@ if ((!state.access || state.closed) && state.trialUsed && !t.startsWith("/") && 
         state.access = true;
         state.closed = false;
         await setState(chatId, state);
-		  
-await sendTG(
-  chatId,
-  `Привет, ${state.userName || "друг"}! Доступ открыт ✅ Начинаем консультацию.`
-);
-return res.status(200).json({ ok: true });
+
+        await sendTG(
+          chatId,
+          `Привет, ${state.userName || "друг"}! Доступ открыт ✅ Начинаем консультацию.`
+        );
+        return res.status(200).json({ ok: true });
       }
 
       await sendTG(chatId, "Введите код доступа.");
@@ -557,7 +415,6 @@ return res.status(200).json({ ok: true });
     }
 
     // ===== LLM normal flow =====
-    // ❗️ПРОМТ НЕ ТРОГАЮ — дальше будет SYSTEM_PROMPT
     const SYSTEM_PROMPT = `
 ТЫ = «ТОЛИК», ИИ-консультант Maneki Trading.
 Режим: живой, чуть дерзкий, но без хамства и без «клоунады». Умный собеседник, который говорит по-человечески.
