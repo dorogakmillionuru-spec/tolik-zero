@@ -359,19 +359,8 @@ if (isAdmin && (t === "/mk3" || t === "/mk10" || t === "/mk30")) {
       return res.status(200).json({ ok: true });
     }
 
-  if (t === "/mentor") {
-  const state = await getState(chatId);
+if (t === "/mentor") {
   await sendMentorBlock(chatId, state);
-  return res.status(200).json({ ok: true });
-}
-
-  const name = state.mentorName || "наставник";
-
-  await sendTG(
-    chatId,
-    `Твой наставник: ${name}\nНаписать: tg://user?id=${state.mentorId}`
-  );
-
   return res.status(200).json({ ok: true });
 }
 
