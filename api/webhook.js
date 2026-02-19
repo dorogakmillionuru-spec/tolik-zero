@@ -293,7 +293,7 @@ const t = (userTextRaw || "").trim().split("@")[0];
     }
 
 	  if (t === "/channel") {
-  await sendTG(chatId, "Официальный канал: https://t.me/ССЫЛКА");
+  await sendTG(chatId, "Официальный канал: https://t.me/+rz7c_SxvZWIzNDVi");
   return res.status(200).json({ ok: true });
 }
 
@@ -303,7 +303,9 @@ if (t === "/partner") {
 }
 
 if (t === "/mentor") {
-  await sendTG(chatId, "Твой наставник: наставник");
+  const state = await getState(chatId);
+  const mentor = state.mentorName  state.mentorUser  state.mentorId || "не задан";
+  await sendTG(chatId, "Твой наставник: " + mentor);
   return res.status(200).json({ ok: true });
 }
 	  
