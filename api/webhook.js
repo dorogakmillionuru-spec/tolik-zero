@@ -207,6 +207,16 @@ async function setHistory(chatId, historyArr) {
   await redis.set(key, JSON.stringify(historyArr));
 }
 
+async function sendMentorBlock(chatId, state) {
+  if (!state.mentorId) return;
+
+  const name = state.mentorName || "наставник";
+
+  await sendTG(
+    chatId,
+    `\n👤 Наставник: ${name}\n✉️ Написать: tg://user?id=${state.mentorId}`
+  );
+}
 export default async function handler(req, res) {
   try {
     // 1) Подтверждение оплаты
@@ -349,13 +359,11 @@ if (isAdmin && (t === "/mk3" || t === "/mk10" || t === "/mk30")) {
       return res.status(200).json({ ok: true });
     }
 
-    if (t === "/mentor") {
+  if (t === "/mentor") {
   const state = await getState(chatId);
-
-  if (!state.mentorId) {
-    await sendTG(chatId, "Твой наставник: не задан");
-    return res.status(200).json({ ok: true });
-  }
+  await sendMentorBlock(chatId, state);
+  return res.status(200).json({ ok: true });
+}
 
   const name = state.mentorName || "наставник";
 
