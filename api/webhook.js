@@ -372,7 +372,12 @@ if (payload) {
     state.inviterName = payloadName;
   } else {
     const mentorChat = await getChatInfo(state.inviter);
-    state.inviterName = formatMentorName(mentorChat) || "наставник";
+    state.inviterName =
+  [mentorChat?.first_name, mentorChat?.last_name]
+    .filter(Boolean)
+    .join(" ") ||
+  mentorChat?.username ||
+  "наставник";
   }
 
   await setState(chatId, state);
