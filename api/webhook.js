@@ -333,6 +333,10 @@ if (t === "/mentor") {
 // payload может быть "chatId_name"
 let payload = payloadRaw;
 let payloadName = null;
+// сохраняем наставника всегда
+if (payload) {
+  state.mentorId = payload;
+}
 
 if (payloadRaw && payloadRaw.includes("_")) {
   const idx = payloadRaw.indexOf("_");
