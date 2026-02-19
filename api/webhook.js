@@ -292,6 +292,21 @@ const t = (userTextRaw || "").trim().split("@")[0];
       return res.status(200).json({ ok: true });
     }
 
+	  if (t === "/channel") {
+  await sendTG(chatId, "Официальный канал: https://t.me/ССЫЛКА");
+  return res.status(200).json({ ok: true });
+}
+
+if (t === "/partner") {
+  await sendTG(chatId, "Твоя партнёрская ссылка: https://t.me/Tolik_Testy_Bot?start=" + chatId);
+  return res.status(200).json({ ok: true });
+}
+
+if (t === "/mentor") {
+  await sendTG(chatId, "Твой наставник: наставник");
+  return res.status(200).json({ ok: true });
+}
+	  
     // --- STATE ---
     const state = await getState(chatId);
 	  
