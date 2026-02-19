@@ -344,21 +344,24 @@ if (payloadRaw && payloadRaw.includes("_")) {
 }
 
 // сохраняем наставника ВСЕГДА (уже после распаковки payloadName)
-
-if (payload && !state.inviter) {
-  state.inviter = payload;
+if (payload) {
+  // 1) наставник всегда
   state.mentorId = payload;
-	  
+
   if (payloadName) {
-    state.inviterName = payloadName;
+    state.mentorName = payloadName;
   } else {
-    const mentorChat = await getChatInfo(state.inviter);
-    state.inviterName =
-  [mentorChat?.first_name, mentorChat?.last_name]
-    .filter(Boolean)
-    .join(" ") ||
-  mentorChat?.username ||
-  "наставник";
+    const mentorChat = await getChatInfo(payload);
+    state.mentorName =
+      [mentorChat?.first_name, mentorChat?.last_name].filter(Boolean).join(" ") ||
+      (mentorChat?.username ? "@" + mentorChat.username : null) ||
+      "наставник";
+  }
+
+  // 2) inviter ставим только один раз (чтобы не перетирало)
+  if (!state.inviter) {
+    state.inviter = payload;
+    state.inviterName = state.mentorName;
   }
 
   await setState(chatId, state);
