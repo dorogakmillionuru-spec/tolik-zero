@@ -301,11 +301,9 @@ if (t === "/partner") {
   await sendTG(chatId, "Твоя партнёрская ссылка: https://t.me/Tolik_Testy_Bot?start=" + chatId);
   return res.status(200).json({ ok: true });
 }
-
 if (t === "/mentor") {
-  const st = await getState(chatId);
-  const mentor = st.mentorName || st.mentorUser || st.mentorId || "не задан";
-  await sendTG(chatId, "Твой наставник: " + mentor);
+  const state = await getState(chatId);
+  await sendTG(chatId, "Твой наставник: " + (state.mentorId || "не задан"));
   return res.status(200).json({ ok: true });
 }
 	  
