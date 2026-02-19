@@ -333,12 +333,14 @@ if (t === "/mentor") {
 // payload может быть "chatId_name"
 let payload = payloadRaw;
 let payloadName = null;
-// сохраняем наставника всегда
+
+		// сохраняем наставника всегда (после распаковки payloadName)
 if (payload) {
   state.mentorId = payload;
-  state.mentorName = payloadName || state.mentorName || "наставник";
+  if (payloadName) state.mentorName = payloadName;
+  await setState(chatId, state);
 }
-
+		
 if (payloadRaw && payloadRaw.includes("_")) {
   const idx = payloadRaw.indexOf("_");
   payload = payloadRaw.slice(0, idx).trim();
