@@ -1221,8 +1221,8 @@ MANEKI — это не кнопка «быстро заработать».
         );
       }, 12000);
     }
+let r;
 
-    let r;
 try {
   r = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -1237,6 +1237,7 @@ try {
   });
 } catch (err) {
   console.log("FETCH ERROR:", err);
+  if (slowTimer) clearTimeout(slowTimer);
   return res.status(200).json({ ok: true });
 } finally {
   if (slowTimer) clearTimeout(slowTimer);
