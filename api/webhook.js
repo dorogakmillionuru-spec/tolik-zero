@@ -328,8 +328,9 @@ if (t === "/mentor") {
 	  
     // --- /start payload = inviter/ref binding ---
     if (t.startsWith("/start")) {
-      const parts = t.split(" ").map((x) => x.trim()).filter(Boolean);
-      const payloadRaw = parts.length > 1 ? parts.slice(1).join(" ") : null;
+ const rawStart = (userTextRaw || "").trim();
+const payloadRaw = rawStart.split(/\s+/).slice(1).join(" ") || null;
+await sendTG(chatId, "DEBUG payloadRaw=" + payloadRaw);
 
 // payload может быть "chatId_name"
 let payload = payloadRaw;
