@@ -352,8 +352,8 @@ if (payloadRaw && payloadRaw.includes("_")) {
       await sendTG(chatId, startText);
       
       // если нет доступа и бесплатка уже использована — просим код
-   if ((!state.access || state.closed) && state.trialUsed && !["/support","/channel","/partner","/mentor","/help","/link"].includes(t)) {
-    await sendTG(chatId, "Введите код доступа.");
+if ((!state.access || state.closed) && state.trialUsed && !t.startsWith("/") && t !== "/channel" && t !== "/partner" && t !== "/mentor" && t !== "/support") {
+	await sendTG(chatId, "Введите код доступа.");
     return res.status(200).json({ ok: true });
 }
 
