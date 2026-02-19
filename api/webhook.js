@@ -1223,21 +1223,24 @@ MANEKI — это не кнопка «быстро заработать».
     }
 
     let r;
-    try {
-		r = await fetch("https://api.openai.com/v1/responses", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: "gpt-4.1-mini",
-          input: messages,
-        }),
-      });
-    } finally {
-      if (slowTimer) clearTimeout(slowTimer);
-    }
+try {
+  r = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: "gpt-4.1-mini",
+      input: messages,
+    }),
+  });
+} catch (err) {
+  console.log("FETCH ERROR:", err);
+  return res.status(200).json({ ok: true });
+} finally {
+  if (slowTimer) clearTimeout(slowTimer);
+}
 
     if (!r.ok) {
       const err = await r.text();
@@ -1323,7 +1326,7 @@ https://t.me/yuliyakuzminova`;
 
     await sendTG(chatId, answer);
     return res.status(200).json({ ok: true });
-  catch (e) {
+ } catch (e) {
     console.log("WEBHOOK FATAL:", e);
     return res.status(200).json({ ok: true });
   }
