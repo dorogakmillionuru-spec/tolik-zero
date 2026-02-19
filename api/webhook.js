@@ -345,7 +345,7 @@ if (payloadRaw && payloadRaw.includes("_")) {
   payloadName = payloadRaw.slice(idx + 1).trim();
   if (payloadName) payloadName = decodeURIComponent(payloadName);
 }
-
+		
   if (payload && !state.inviter) {
   state.inviter = payload;
 
