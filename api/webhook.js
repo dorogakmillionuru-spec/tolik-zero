@@ -330,7 +330,6 @@ if (t === "/mentor") {
     if (t.startsWith("/start")) {
  const rawStart = (userTextRaw || "").trim();
 const payloadRaw = rawStart.split(/\s+/).slice(1).join(" ") || null;
-await sendTG(chatId, "DEBUG payloadRaw=" + payloadRaw);
 
 // payload может быть "chatId_name"
 let payload = payloadRaw;
@@ -344,10 +343,6 @@ if (payloadRaw && payloadRaw.includes("_")) {
 }
 
 		// сохраняем наставника ВСЕГДА (уже после распаковки payloadName)
-if (payload) {
-  state.mentorId = payload;
-  await setState(chatId, state);
-}
 
   if (payloadName) {
     state.mentorName = payloadName;
