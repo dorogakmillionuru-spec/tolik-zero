@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Вход в Толиков</title>
+  <meta name="description" content="Точка входа: 3 Толика + чат клуба + короткие инструкции." />
+  <style>
+    :root{
+      --bg0:#0b0705;
+      --bg1:#140b07;
+      --text:#f6f2ef;
+      --muted:#cdbfb6;
+      --line:rgba(255,255,255,.10);
+      --accent:#ff7a18;
+      --accent2:#7dd3fc;
+      --shadow: 0 20px 60px rgba(0,0,0,.55);
+      --radius: 20px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      color:var(--text);
+      background:
+        radial-gradient(1200px 700px at 20% -10%, rgba(255,122,24,.28), transparent 60%),
+        radial-gradient(900px 600px at 80% 0%, rgba(125,211,252,.14), transparent 55%),
+        radial-gradient(900px 700px at 50% 120%, rgba(255,122,24,.18), transparent 55%),
+        linear-gradient(180deg, var(--bg0), var(--bg1));
+      min-height:100vh;
+    }
+    .wrap{max-width:980px;margin:0 auto;padding:28px 18px 70px}
+    header{
+      padding:26px 18px 18px;
+      border:1px solid var(--line);
+      border-radius: var(--radius);
+      background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+      box-shadow: var(--shadow);
+      position:relative;
+      overflow:hidden;
+    }
+    header:before{
+      content:"";
+      position:absolute;inset:-2px;
+      background: radial-gradient(600px 220px at 18% 0%, rgba(255,122,24,.35), transparent 60%),
+                  radial-gradient(520px 220px at 85% 10%, rgba(125,211,252,.14), transparent 60%);
+      pointer-events:none;
+    }
+    .badge{
+      display:inline-flex;gap:8px;align-items:center;
+      padding:7px 12px;border-radius:999px;
+      border:1px solid rgba(255,122,24,.35);
+      background: rgba(255,122,24,.10);
+      color:#ffd3b3;font-weight:650;font-size:13px;
+    }
+    h1{margin:14px 0 8px;font-size:32px;line-height:1.08}
+    .sub{margin:0;color:var(--muted);max-width:70ch;font-size:15.5px;line-height:1.5}
+    .grid{display:grid;grid-template-columns:1.2fr .8fr;gap:16px;margin-top:16px;position:relative}
+    @media (max-width:860px){.grid{grid-template-columns:1fr}}
+    .card{
+      border:1px solid var(--line);
+      border-radius: var(--radius);
+      background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .card .hd{
+      padding:14px 16px;
+      display:flex;align-items:center;justify-content:space-between;gap:12px;
+      border-bottom:1px solid var(--line);
+      background: rgba(0,0,0,.10);
+    }
+    .card .bd{padding:14px 16px 16px}
+    .title{font-weight:750;font-size:16px}
+    .pill{
+      display:inline-flex;align-items:center;gap:8px;
+      padding:6px 10px;border-radius:999px;
+      border:1px solid rgba(255,255,255,.14);
+      background: rgba(0,0,0,.18);
+      color: var(--muted);
+      font-size:12.5px;
+      white-space:nowrap;
+    }
+    .steps{margin:0;padding-left:18px;color:var(--muted);line-height:1.55}
+    .steps li{margin:6px 0}
+    .btnrow{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+    .btn{
+      appearance:none;border:0;cursor:pointer;
+      padding:12px 14px;border-radius:14px;
+      font-weight:800;letter-spacing:.2px;
+      color:#140b07;
+      background: linear-gradient(135deg, rgba(255,122,24,1), rgba(255,190,120,1));
+      box-shadow: 0 14px 35px rgba(255,122,24,.18);
+      transition: transform .08s ease, filter .08s ease;
+      text-decoration:none;
+      display:inline-flex;align-items:center;justify-content:center;gap:10px;
+      min-width: 220px;
+    }
+    .btn:hover{transform: translateY(-1px);filter: brightness(1.02)}
+    .btn:active{transform: translateY(0px);filter: brightness(.98)}
+    .btn.secondary{
+      color: var(--text);
+      background: linear-gradient(180deg, rgba(255,255,255,.09), rgba(255,255,255,.05));
+      border:1px solid rgba(255,255,255,.14);
+      box-shadow: none;
+      min-width: 220px;
+    }
+    .btn.ghost{
+      min-width: unset;
+      padding:10px 12px;
+      border-radius:12px;
+      color: var(--muted);
+      background: rgba(0,0,0,.18);
+      border:1px solid rgba(255,255,255,.12);
+      box-shadow:none;
+      font-weight:750;
+    }
+    .kicker{color:#ffd3b3;font-weight:800;letter-spacing:.35px;font-size:12px;text-transform:uppercase}
+    .list{margin:10px 0 0;padding-left:18px;color:var(--muted);line-height:1.55}
+    .list li{margin:6px 0}
+    .divider{height:1px;background:var(--line);margin:14px 0}
+    .note{
+      border:1px solid rgba(251,191,36,.28);
+      background: rgba(251,191,36,.08);
+      color:#ffe4a7;
+      padding:12px;border-radius:14px;line-height:1.5;
+    }
+    .ok{
+      border:1px solid rgba(52,211,153,.25);
+      background: rgba(52,211,153,.07);
+      color:#c7ffea;
+      padding:12px;border-radius:14px;line-height:1.5;
+    }
+    .small{font-size:12.5px;color:var(--muted);line-height:1.5;margin-top:10px}
+    .links{
+      display:grid;gap:12px;margin-top:14px;
+      grid-template-columns: repeat(2, minmax(0,1fr));
+    }
+    @media (max-width:700px){.links{grid-template-columns:1fr}}
+    .linkcard{
+      border:1px solid var(--line);
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(0,0,0,.18), rgba(255,255,255,.02));
+      padding:14px;
+    }
+    .linkcard .top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+    .linkcard .name{font-weight:850}
+    .linkcard .meta{font-size:12.5px;color:var(--muted);margin-top:6px;line-height:1.45}
+    .footer{
+      margin-top:18px;
+      padding:14px 16px;
+      border-radius: var(--radius);
+      border:1px solid var(--line);
+      background: rgba(0,0,0,.16);
+      color: var(--muted);
+      font-size:12.5px;
+      line-height:1.55;
+    }
+    code{
+      background: rgba(0,0,0,.25);
+      border:1px solid rgba(255,255,255,.12);
+      padding:2px 6px;border-radius:10px;
+      color:#ffd3b3;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <span class="badge">🍫🧡 ВХОД В ТОЛИКОВ • март</span>
+      <h1>Открыл → прочитал → сделал.</h1>
+      <p class="sub">
+        Здесь три Толика + чат клуба + короткие правила. <br/>
+        Без “покажи экран” и без “проведи меня за ручку”.
+      </p>
+
+      <div class="grid">
+        <div class="card">
+          <div class="hd">
+            <div class="title">⚠️ Перед стартом</div>
+            <span class="pill">2 минуты, и поехали</span>
+          </div>
+          <div class="bd">
+            <ol class="steps">
+              <li>Открой <b>ChatGPT</b> и войди в аккаунт.</li>
+              <li>Нажми нужного Толика ниже.</li>
+              <li>Не жди магию. <b>Делай</b> то, что он просит: 1 шаг → 1 действие.</li>
+            </ol>
+            <div class="divider"></div>
+            <div class="ok">
+              ✅ После каждого общения с Толиком: <b>делай скрин</b> и кидай в чат клуба.
+              Это не “для красоты”. Это чтобы рост был виден и тебе, и мне.
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="hd">
+            <div class="title">🧾 Быстрые правила</div>
+            <span class="pill">чтобы не тупить</span>
+          </div>
+          <div class="bd">
+            <div class="note">
+              Если ты ждёшь, что Толик сам “напишет за тебя” — ты не работаешь, ты мечтаешь. 😌
+              Толик снимает страх, даёт структуру и разгоняет действие.
+            </div>
+            <p class="small">
+              Если кто-то потерял ссылки — сюда. Если “где кнопка?” — сюда.  
+              Ссылка одна, люди не теряются, ты не бесишься. 🤝
+            </p>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <section class="links">
+      <div class="linkcard">
+        <div class="top">
+          <div>
+            <div class="kicker">ТОЛИК #1</div>
+            <div class="name">🟢 Первый контакт</div>
+          </div>
+          <button class="btn ghost" data-copy="FIRST_CONTACT_LINK">копировать ссылку</button>
+        </div>
+        <div class="meta">
+          Распаковка сетевика: кто ты как партнёр, как о себе говорить, как упаковать соцсети.
+          Пишет тексты, помогает с оформлением и позиционированием.
+        </div>
+        <div class="btnrow">
+          <a class="btn" href="FIRST_CONTACT_LINK" target="_blank" rel="noopener">Открыть Первый контакт</a>
+          <a class="btn secondary" href="#chat">Сразу в чат клуба</a>
+        </div>
+      </div>
+
+      <div class="linkcard">
+        <div class="top">
+          <div>
+            <div class="kicker">ТОЛИК #2</div>
+            <div class="name">🟣 Приглашатор</div>
+          </div>
+          <button class="btn ghost" data-copy="INVITER_LINK">копировать ссылку</button>
+        </div>
+        <div class="meta">
+          Не “волшебные тексты”, а <b>анти-страх</b>.  
+          5–10–50 диалогов → появляется спокойствие, стиль и движение.
+        </div>
+        <div class="btnrow">
+          <a class="btn" href="INVITER_LINK" target="_blank" rel="noopener">Открыть Приглашатор</a>
+          <a class="btn secondary" href="#rules">Правила скринов</a>
+        </div>
+      </div>
+
+      <div class="linkcard">
+        <div class="top">
+          <div>
+            <div class="kicker">ТОЛИК #3</div>
+            <div class="name">🟡 Продюсер проектов</div>
+          </div>
+          <button class="btn ghost" data-copy="PROJECT_PRODUCER_LINK">копировать ссылку</button>
+        </div>
+        <div class="meta">
+          Для тех, у кого есть идея/экспертность/желание собрать проект.
+          Структура → план → продукт → контент.
+        </div>
+        <div class="btnrow">
+          <a class="btn" href="PROJECT_PRODUCER_LINK" target="_blank" rel="noopener">Открыть Продюсер проектов</a>
+          <a class="btn secondary" href="#chat">Войти в чат клуба</a>
+        </div>
+      </div>
+
+      <div class="linkcard" id="chat">
+        <div class="top">
+          <div>
+            <div class="kicker">ОБЯЗАТЕЛЬНО</div>
+            <div class="name">💬 Чат клуба</div>
+          </div>
+          <button class="btn ghost" data-copy="CLUB_CHAT_LINK">копировать ссылку</button>
+        </div>
+        <div class="meta">
+          Здесь всё закрепляется: разборы, вопросы, движение, скрины после работы с Толиками.
+        </div>
+        <div class="btnrow">
+          <a class="btn" href="CLUB_CHAT_LINK" target="_blank" rel="noopener">Войти в чат клуба</a>
+          <a class="btn secondary" href="#rules">Как правильно работать</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" id="rules" style="margin-top:16px;">
+      <div class="hd">
+        <div class="title">📌 Как работать, чтобы был результат</div>
+        <span class="pill">без детсада</span>
+      </div>
+      <div class="bd">
+        <ul class="list">
+          <li>Если Толик спрашивает “кому пишем?” — это не магия. Это старт диалога. Пиши <b>привет</b> и работай.</li>
+          <li>Не копируй простыню “как есть”, если тебе не по стилю. Проси: <code>сделай короче</code>, <code>под мой тон</code>, <code>3 варианта</code>.</li>
+          <li>Скрин после результата → в чат. Без скрина = не было работы. 😄</li>
+        </ul>
+        <div class="divider"></div>
+        <p class="small">
+          ⚙️ Ссылки можно менять раз в месяц — это нормально.  
+          Просто вставляешь новые ссылки вместо плейсхолдеров <code>FIRST_CONTACT_LINK</code>, <code>INVITER_LINK</code>, <code>PROJECT_PRODUCER_LINK</code>, <code>CLUB_CHAT_LINK</code>.
+        </p>
+      </div>
+    </section>
+
+    <div class="footer">
+      Сделано так, чтобы ты перестала бегать по личкам со ссылками 🙃<br/>
+      Следующий уровень (если захочешь): <b>страница после оплаты</b> (автовыдача доступа).
+      Это уже про платёжку/интеграции.
+    </div>
+  </div>
+
+<script>
+  const toast = (msg) => {
+    const el = document.createElement('div');
+    el.textContent = msg;
+    el.style.position = 'fixed';
+    el.style.left = '50%';
+    el.style.bottom = '18px';
+    el.style.transform = 'translateX(-50%)';
+    el.style.padding = '10px 14px';
+    el.style.borderRadius = '14px';
+    el.style.border = '1px solid rgba(255,255,255,.14)';
+    el.style.background = 'rgba(0,0,0,.55)';
+    el.style.color = '#f6f2ef';
+    el.style.backdropFilter = 'blur(8px)';
+    el.style.zIndex = 9999;
+    el.style.boxShadow = '0 16px 40px rgba(0,0,0,.4)';
+    document.body.appendChild(el);
+    setTimeout(()=>{ el.style.opacity='0'; el.style.transition='opacity .25s ease'; }, 1100);
+    setTimeout(()=>el.remove(), 1400);
+  };
+
+  document.querySelectorAll('[data-copy]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const value = btn.getAttribute('data-copy');
+      try{
+        await navigator.clipboard.writeText(value);
+        toast('Ссылка скопирована ✅');
+      }catch(e){
+        const ta = document.createElement('textarea');
+        ta.value = value;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+        toast('Ссылка скопирована ✅');
+      }
+    });
+  });
+</script>
+</body>
+</html>
